@@ -4,8 +4,10 @@ Layout rule (from the old FF5 PC sheets, 2026-11-14; a fixed 56 px grid failed: 
   - Recursive cut: split the sheet at empty rows into bands, each band at empty columns, each piece at empty
     rows again, and so on until a piece splits neither way: that piece is one pose. Gaps up to ROW_GAP/COL_GAP
     px do not split; a run thinner than TINY px (a sparkle dot, a sliver) joins its nearest pose.
-  - Each frame is cut halfway through the empty gaps around its pose, at most MARGIN px beyond it, so frames of
-    one row share the same top and bottom: feet stay lined up along a row.
+  - Each frame is cut halfway through the empty gaps around its pose, but at most MARGIN px beyond the pose. So
+    frames do NOT keep a shared feet line: a pose whose lowest pixel is more than MARGIN px above its row's
+    lowest pixel gets a shorter frame. To place poses on a common feet line, measure from the sheet itself
+    (psp_battle_adapt.py does this).
   - Sheets of 64x64 or smaller are one frame: copied whole.
 Checks printed: every opaque pixel lands in exactly one frame; poses smaller than TINY px or bigger than
 BIG px (a fragment, or two poses merged) are listed for a look.
