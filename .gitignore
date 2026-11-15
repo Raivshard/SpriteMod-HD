@@ -1,0 +1,6 @@
+# compiled files: published in the Releases zip, not in git
+*.dll
+*.bundle
+*.pdb
+bin/
+obj/

@@ -1,0 +1,195 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "MenuLayout_schema.json",
+  "title": "FF5MenuSprites MenuLayout",
+  "description": "MenuLayout.json and add-on files (MenuLayout.<name>.json). Units = px at 1440p. Keys starting with _ are notes. Full docs: MenuLayout_README.md. Keep in step with the plugin's Keys.cs.",
+  "type": "object",
+  "patternProperties": { "^_": {} },
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string", "description": "Path to this schema, for editors (VS Code). Ignored by the plugin." },
+    "log": { "type": "boolean", "description": "true = log what each rule matched. Main file only." },
+    "dumpKey": { "type": "string", "pattern": "^(F([1-9]|1[0-2]))?$", "description": "Screen dump key F1-F12; \"\" = off. Default F8. Main file only." },
+    "perf": { "type": "boolean", "description": "true = [Perf] lines every 5 s (frame times, plugin cost). Main file only." },
+    "profileGame": { "type": "boolean", "description": "true = time the game's own loading ([GameProf] lines). Read at game start. Main file only." },
+    "characterNames": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Saved party name -> shown name, e.g. { \"Lenna\": \"Reina\" }. Main file only." },
+    "cleanup": {
+      "type": "object", "patternProperties": { "^_": {} }, "additionalProperties": false,
+      "description": "Forced memory clean-ups after battles, menus and map changes. Main file only.",
+      "properties": {
+        "skipGcCollect": { "type": "boolean", "description": "true = skip the forced .NET collection." },
+        "unloadEveryMinutes": { "type": "number", "minimum": 0, "description": "Unused-asset sweep at most this often; 0 = game's behaviour." }
+      }
+    },
+    "kupoTextureCache": { "type": "boolean", "description": "true = reuse a GPU copy of KupoUI's whole-texture replacements. Live. Main file only." },
+    "kupoSkipUnreadable": { "type": "boolean", "description": "Harmful (removes custom menu art); leave out or false. Main file only." },
+    "kupoFastUnreadable": { "type": "boolean", "description": "true = faster KupoUI swap for locked UI textures, same look. Live. Main file only." },
+    "textureLimit": { "type": "integer", "minimum": 0, "maximum": 3, "description": "Texture quality: 0 = full size, 1 = half (the game's own), 2 = quarter. Missing = game's own." },
+    "screens": { "type": "array", "items": { "$ref": "#/definitions/screen" }, "description": "Character sprite size and position per menu screen." },
+    "styles": { "type": "object", "patternProperties": { "^_": {} }, "additionalProperties": { "$ref": "#/definitions/elementKeys" }, "description": "Named sets of element keys; a rule uses one with \"style\": \"name\"." },
+    "elements": { "type": "array", "items": { "$ref": "#/definitions/element" }, "description": "Rules for single texts, images and sprites. The first rule that fits an object wins." },
+    "textStyles": { "type": "array", "items": { "$ref": "#/definitions/textStyle" }, "description": "Style for every text of a font type." },
+    "renderHeights": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 }, "description": "Camera name -> render height, px; 0 = game's. Main file only." },
+    "battle": {
+      "type": "object", "patternProperties": { "^_": {} }, "additionalProperties": false, "description": "Main file only.",
+      "properties": {
+        "fitBackground": { "type": "boolean", "description": "true = show the background's full height." },
+        "spritesDown": { "type": "number", "description": "Move party, enemies and effects down, px. Live; 0 = off." },
+        "spriteCameras": { "type": "array", "items": { "type": "string" }, "description": "Cameras that move with spritesDown." },
+        "resolutionScale": { "type": "number", "description": "Test setting; leave 0." },
+        "hdPixelsPerUnit": { "type": "number", "minimum": 0, "description": "HD battle character and enemy textures: texture px per battle unit. 6.667 (default) = a 248 px image shows 248 px tall at 1440p. 0 = off." },
+        "enemyOnTop": { "type": "array", "items": { "type": "string" }, "description": "Enemy texture-name prefixes (e.g. MN_FF5_127) drawn above the other enemies." },
+        "partyRight": { "type": "number", "description": "Move every party member (sprite and shadow) right, px at 1440p; negative = left. Live; 0 = off. Needs hdPixelsPerUnit on." },
+        "partyDown": { "type": "number", "description": "Move every party member (sprite and shadow) down, px at 1440p; negative = up. Adds to spritesDown. Live; 0 = off." },
+        "partySlots": { "type": "array", "maxItems": 4, "items": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }, "description": "Per party slot (1 = top of the screen): [right, down] px at 1440p, added to partyRight/partyDown. Live." },
+        "backRowShift": { "type": "number", "description": "Extra px (1440p) added to the game's back-row distance for back-row party members; negative = closer to the front row. Eases in with the game's slide. Live; 0 = game's." },
+        "depthScale": { "type": "number", "minimum": 0, "maximum": 90, "description": "Depth look: % smaller a sprite (party, enemies, shadows) is with its feet at the top of the battle view than at the bottom, linear in between; feet stay put. Live; 0 = off." },
+        "groundShadow": { "type": "object", "additionalProperties": false, "description": "3D ground shadows computed on the GPU from each sprite's outline and depth map (<sprite>.depth.png). Live.",
+          "properties": {
+            "on": { "type": "boolean", "description": "false = off (same as leaving the block out)." },
+            "debug": { "type": "boolean", "description": "true = show the shadow buffer over the battle: bodies grey by depth (yellow = ground contact, blue tint = lifted), red = the computed shadow. Default false." },
+            "azimuth": { "type": "number", "description": "Screen direction the shadow falls, degrees: 0 right, 90 up (away), 180 left, 270 down (toward the camera). Default 45." },
+            "elevation": { "type": "number", "minimum": 5, "maximum": 90, "description": "Light height, degrees: low = long shadow, 90 = overhead (no length). Default 50." },
+            "opacity": { "type": "number", "minimum": 0, "maximum": 1, "description": "Darkness 0..1. Default 0.45." },
+            "groundTilt": { "type": "number", "minimum": 0, "maximum": 1, "description": "The angle the ground is seen at (sin of the view tilt): how much of the shadow's up/down length shows, and how deep bodies are (a foot drawn higher is farther back). 0.5 matches the HD sprites. Default 0.5." },
+            "hideGameShadows": { "type": "boolean", "description": "true = the game's round shadows stop drawing (flying enemies' always do: their shadow gap is 2 x the gap down to the round shadow's base). Default false." },
+            "thickness": { "type": "number", "minimum": 0, "maximum": 2, "description": "Rounded depth of each part from its outline, as a share of the image width (added behind the depth map's surface). Default 0.25; 0.15 suits sprites with depth maps." },
+            "depthRange": { "type": "number", "minimum": 0, "maximum": 3, "description": "Fallback front-to-back depth of a sprite with a depth map, as a share of its width (the map's black-to-white range). Normally the depth scale is solved per sprite so both soles touch the ground; this is used when that fails (log: 'ground fit', debug on) and for flyers. Depth maps: <sprite>.depth.png beside the sprite's PNG (black background, bright = near). Default 0.6." },
+            "blur": { "type": "number", "minimum": 0, "maximum": 64, "description": "Soft edge, px at 1440p. 0 = sharp. Default 4." },
+            "falloff": { "type": "number", "minimum": 0, "maximum": 1, "description": "How much lighter the far end is than at the feet (0 = even). Default 0.6." }
+          } }
+      }
+    },
+    "loadingIcon": {
+      "type": "object", "patternProperties": { "^_": {} }, "additionalProperties": false, "description": "Main file only.",
+      "properties": {
+        "frameTime": { "type": "number", "description": "Seconds per frame (default 0.125)." },
+        "size": { "type": "number", "description": "Size on screen, px; 0 = game's." },
+        "priority": { "enum": ["", "Low", "BelowNormal", "Below Normal", "Normal", "High"], "description": "Background loading priority; \"\" = game's." }
+      }
+    },
+    "titleHighlight": {
+      "type": "object", "patternProperties": { "^_": {} }, "additionalProperties": false, "description": "Title menu highlight. Main file only.",
+      "properties": {
+        "color": { "$ref": "#/definitions/color" },
+        "scale": { "type": "number", "description": "Growth of the highlighted entry (default 1.1)." },
+        "fadeTime": { "type": "number", "description": "Fade seconds (default 0.15)." }
+      }
+    }
+  },
+  "definitions": {
+    "color": { "type": "string", "pattern": "^#?([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$", "description": "#RRGGBB or #RRGGBBAA." },
+    "strings": { "anyOf": [ { "type": "string" }, { "type": "array", "items": { "type": "string" } } ] },
+    "pad": { "anyOf": [ { "type": "number" }, { "type": "array", "items": { "type": "number" }, "minItems": 1, "maxItems": 2 } ], "description": "n, [n] or [left/right, top/bottom], px." },
+    "effect": {
+      "anyOf": [
+        { "type": "boolean" },
+        { "type": "object", "patternProperties": { "^_": {} }, "additionalProperties": false,
+          "properties": {
+            "color": { "$ref": "#/definitions/color" },
+            "distance": { "anyOf": [ { "type": "number" }, { "type": "string" }, { "type": "array", "items": { "type": ["number", "string"] }, "minItems": 1, "maxItems": 2 } ], "description": "n or [right, down], px." },
+            "blur": { "type": "number", "minimum": 0, "description": "Soft edge, px (8 fainter copies)." }
+          }
+        }
+      ],
+      "description": "false = off; { color, distance, blur } = add or change."
+    },
+    "state": {
+      "type": "object", "patternProperties": { "^_": {} }, "additionalProperties": false,
+      "properties": {
+        "color": { "$ref": "#/definitions/color" },
+        "scale": { "type": "number" },
+        "fontScale": { "type": "number" },
+        "font": { "type": "string" }
+      }
+    },
+    "textStyleKeys": {
+      "fontStyle": { "type": "string", "description": "Normal/Regular, Bold, Italic, BoldAndItalic, or a face name of the same font, e.g. \"SemiBold\", \"Light Italic\"." },
+      "lineSpacing": { "type": "number", "description": "x normal." },
+      "alignment": { "enum": ["UpperLeft", "UpperCenter", "UpperRight", "MiddleLeft", "MiddleCenter", "MiddleRight", "LowerLeft", "LowerCenter", "LowerRight"] }
+    },
+    "elementKeys": {
+      "type": "object", "patternProperties": { "^_": {} }, "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "description": "Your label (log). In an add-on, the same name replaces an earlier file's rule." },
+        "style": { "$ref": "#/definitions/strings", "description": "Shared style name(s); the rule's own keys win." },
+        "path": { "type": "string", "description": "The object's path ends with this (F8 dump)." },
+        "sprite": { "type": "string", "description": "Instead of path: sprite name starts with this." },
+        "within": { "type": "string", "description": "The path must also contain this." },
+        "text": { "type": "string", "minLength": 1, "description": "Only texts showing these words (whole text, capitals ignored, * = any letters). Needs path or within. Re-checked when the words change." },
+        "fontType": { "type": "string", "pattern": "^(Font0[1-9]|Font10|Default)$", "description": "Only texts of this font type (Last.UI.FontSelector). Combine with path, within or text; for all texts of a type use textStyles." },
+        "nth": { "type": "integer", "minimum": 0, "description": "Only the Nth object with this name under the same parent." },
+        "battleOnly": { "type": "boolean" },
+        "moveDown": { "type": "number" },
+        "moveRight": { "type": "number" },
+        "addSpritesDown": { "type": "boolean", "description": "Add battle.spritesDown to moveDown." },
+        "scale": { "type": "number", "description": "x the game's size; 1 = unchanged." },
+        "color": { "$ref": "#/definitions/color" },
+        "fontSize": { "type": "number", "description": "px." },
+        "fontScale": { "type": "number", "description": "x the text's own size; 0 = unchanged." },
+        "fontSizeMax": { "type": "number", "description": "Largest size for shrink-to-fit text, px." },
+        "fontSizeMin": { "type": "number", "description": "Smallest size for shrink-to-fit text, px." },
+        "font": { "type": "string", "description": "Loaded or installed font name; \"\" = unchanged." },
+        "fontStyle": { "$ref": "#/definitions/textStyleKeys/fontStyle" },
+        "lineSpacing": { "$ref": "#/definitions/textStyleKeys/lineSpacing" },
+        "alignment": { "$ref": "#/definitions/textStyleKeys/alignment" },
+        "shadow": { "$ref": "#/definitions/effect" },
+        "outline": { "$ref": "#/definitions/effect" },
+        "onTop": { "type": "boolean" },
+        "backdrop": {
+          "type": "object", "patternProperties": { "^_": {} }, "additionalProperties": false,
+          "properties": {
+            "color": { "$ref": "#/definitions/color" },
+            "padding": { "$ref": "#/definitions/pad" },
+            "merge": { "type": "integer", "minimum": 0, "description": "One box around texts sharing the object this many levels up." },
+            "radius": { "type": "number", "minimum": 0 }
+          }
+        },
+        "selected": { "$ref": "#/definitions/state", "description": "While the cursor is on this row." },
+        "greyed": { "$ref": "#/definitions/state", "description": "While the game greys the text out." },
+        "radius": { "type": "number", "minimum": 0, "description": "Rounded corners for a plain box, px." },
+        "padding": { "$ref": "#/definitions/pad" },
+        "spacing": { "type": "number", "description": "Gap between list items, px." },
+        "listPadding": { "anyOf": [ { "type": "number" }, { "type": "array", "items": { "type": "number" }, "minItems": 1, "maxItems": 4 } ], "description": "Space inside a row/column layout, px: n, [left/right, top/bottom] or [left, right, top, bottom]." },
+        "listAlign": { "$ref": "#/definitions/textStyleKeys/alignment", "description": "Where a row/column layout puts its items." },
+        "width": { "type": "number", "description": "New width, px; any object, containers too (in a layout: layout width)." },
+        "height": { "type": "number" },
+        "widen": { "type": "number", "description": "px added on the right." },
+        "alpha": { "type": "number", "minimum": 0, "maximum": 1, "description": "Opacity of the object and everything under it, 0-1." },
+        "image": { "type": "string", "minLength": 1, "description": "PNG to show instead of the image's sprite, path from this file's folder, e.g. Images/x.png." },
+        "hide": { "type": "boolean", "description": "true = invisible; looks only (keeps its space, still selectable)." },
+        "below": { "$ref": "#/definitions/strings" },
+        "gap": { "type": "number" },
+        "centerOver": { "$ref": "#/definitions/strings" }
+      }
+    },
+    "element": { "$ref": "#/definitions/elementKeys" },
+    "screen": {
+      "type": "object", "patternProperties": { "^_": {} }, "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "match": { "type": "string", "description": "Part of the screen's object path." },
+        "height": { "type": "number" },
+        "moveDown": { "type": "number" },
+        "moveRight": { "type": "number" },
+        "top": { "type": "number", "description": "Instead of moveDown: top of the sprite at this y, px." },
+        "hide": {
+          "type": "array",
+          "items": { "type": "object", "patternProperties": { "^_": {} }, "additionalProperties": false, "required": ["path"], "properties": { "path": { "type": "string" }, "sprite": { "type": "string" } } }
+        }
+      }
+    },
+    "textStyle": {
+      "type": "object", "patternProperties": { "^_": {} }, "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "fontType": { "$ref": "#/definitions/strings", "description": "Font01-Font10 or Default." },
+        "fontStyle": { "$ref": "#/definitions/textStyleKeys/fontStyle" },
+        "lineSpacing": { "$ref": "#/definitions/textStyleKeys/lineSpacing" },
+        "alignment": { "$ref": "#/definitions/textStyleKeys/alignment" },
+        "shadow": { "$ref": "#/definitions/effect" },
+        "outline": { "$ref": "#/definitions/effect" }
+      }
+    }
+  }
+}
