@@ -41,9 +41,11 @@ Set the game folder once per terminal if it isn't the Steam default: `set FF5_GA
 | `animtex_frames.py` | Cut the game's original frames from a background sheet (templates for artists) |
 | `bg_prefab_dump.py` | Print a battle background prefab's pieces, animators and effects from the game's bundle (UnityPy, read-only) |
 | `rename_font.py` | Make a font copy with its own family name (see `FONTS.md`) |
+| `old_pc_dat.py <dat folder> <out folder> [--force]` | Convert image `.dat` files from the old (2015) FF5 PC release and its mods to PNG. Each such file is a 4-byte `INP` header followed by a complete PNG (checked on 479 files from one sprite mod); the PNG bytes are saved unchanged |
+| `cut_sheet_frames.py <png folder> <out folder> [--map map.json] [--dry-run] [--force]` | Cut sprite sheets with transparent gaps into single frames, pixels and palette unchanged. Prints a check that every visible pixel landed in exactly one frame, and lists poses that look like stray dots or merged poses. `--map` sorts sheets into folders (`{"sheet name": "folder"}`). Tested on 465 sheets from the old PC release |
 | `il2cpp_dump` | `dotnet run --project tools\il2cpp_dump -- <interop dll> <Type> [--member name] [--strings regex]` |
 
-All tools read game files only; none write into the game's own data.
+All tools read game files only; none write into the game's own data. The two old-PC tools read only the folder you give them and refuse to overwrite their output unless `--force`.
 
 ## Working on the plugin
 
