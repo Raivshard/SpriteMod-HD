@@ -10,7 +10,8 @@ It does not contain any art. It is the system that makes HD art look right in th
 
 | Area | Features |
 |---|---|
-| **Battle** | Full-resolution rendering (no more blocky HD sprites), HD character and enemy sizing, full-height backgrounds, party placement per slot, depth scaling, **3D ground shadows on the GPU** (light direction, height, blur, depth maps) |
+| **Battle** | Full-resolution rendering (no more blocky HD sprites), HD character and enemy sizing, size factor for replaced sprites drawn at the game's pixel density (`customScale`), full-height backgrounds, party placement per slot, depth scaling, **3D ground shadows on the GPU** (light direction, height, blur, depth maps). *Unverified (not yet tested in-game):* Mini status shown with the normal sprites at a smaller size (`miniScale`) |
+| **Maps** | HD map tile sheets of any size (towns, dungeons, world map), swapped in on every map view without breaking the game's tile layout; per-map files where a sheet name has different art in different maps. Tile tools: one catalogue of every tile, replace a tile once and rebuild every sheet that uses it. *Experimental:* HD field (map) character frames (`fieldSprites`); walk timing still follows the game |
 | **Battle backgrounds** | HD backgrounds of any size, HD frames for animated parts (torches, water) with automatic placement |
 | **Menus** | Size and place character sprites per screen; move, resize, recolour, re-font, hide or swap **any** text or image; shared styles; cursor/greyed-out looks; list spacing |
 | **Other** | Custom loading animation, title-menu highlight, party name swap for old saves, shorter freezes after battles (optional) |
@@ -49,6 +50,7 @@ Use the ready-made pack zip (Nexus page, or Releases on GitHub). The GitHub sour
 | `install\...\FF5\FONTS.md` | Using other fonts, and making extra font weights usable |
 | `install\...\FF5\battle_backgrounds\animtex\README.md` | HD frames for animated battle backgrounds |
 | `examples\author\MenuLayout.json` | The author's full setup: many real rules to copy from. To use it whole, replace the installed `MenuLayout.json` with it; it needs the fonts in `FONTS.md`. The pack's own `MenuLayout.json` is the same setup without fonts and images |
+| `CHANGELOG.md` | What changed in each version |
 | `docs\TECHNICAL_NOTES.md` | How the game works inside, for plugin developers |
 | `source\BUILDING.md` | Building the plugin, the shader bundle and the tools |
 
@@ -59,6 +61,7 @@ install\    copy into the game folder
 examples\   the author's full MenuLayout.json
 docs\       technical notes for developers
 source\     plugin source (C#), shader project (Unity), tools (Python, C#)
+CHANGELOG.md
 ```
 
 ## Credits and licence

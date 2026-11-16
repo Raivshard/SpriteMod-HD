@@ -14,7 +14,7 @@ namespace FF5MenuSprites
     static class Keys
     {
         internal static readonly string[] Top = {
-            "$schema", "log", "dumpKey", "perf", "profileGame", "characterNames", "cleanup", "kupoTextureCache",
+            "$schema", "log", "dumpKey", "perf", "profileGame", "characterNames", "cleanup", "kupoTextureCache", "fieldSprites", "fieldSpritesDebug", "fieldStrideDelay",
             "kupoSkipUnreadable", "kupoFastUnreadable", "textureLimit", "screens", "styles", "elements", "textStyles", "renderHeights",
             "battle", "loadingIcon", "titleHighlight" };
         internal static readonly string[] AddOnTop = { "$schema", "screens", "elements", "textStyles", "styles" };
@@ -30,7 +30,7 @@ namespace FF5MenuSprites
         static readonly string[] State = { "color", "scale", "fontScale", "font" };
         static readonly string[] Effect = { "color", "distance", "blur" };
         static readonly string[] Backdrop = { "color", "merge", "radius", "padding" };
-        static readonly string[] Battle = { "fitBackground", "spritesDown", "spriteCameras", "resolutionScale", "hdPixelsPerUnit", "enemyOnTop", "partyRight", "partyDown", "partySlots", "backRowShift", "depthScale", "groundShadow" };
+        static readonly string[] Battle = { "fitBackground", "spritesDown", "spriteCameras", "resolutionScale", "hdPixelsPerUnit", "customScale", "miniScale", "enemyOnTop", "partyRight", "partyDown", "partySlots", "backRowShift", "depthScale", "groundShadow" };
         static readonly string[] GroundShadow = { "on", "azimuth", "elevation", "opacity", "groundTilt", "hideGameShadows", "thickness", "depthRange", "blur", "falloff", "debug" };
         static readonly string[] Loading = { "frameTime", "size", "priority" };
         static readonly string[] Title = { "color", "scale", "fadeTime" };

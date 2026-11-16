@@ -21,6 +21,32 @@ if (needles.Length > 0 && needles[0] == "--strings")
     }
     return;
 }
+if (needles.Length > 1 && needles[0] == "--grep")
+{
+    // dump.dll <assembly> --grep <regex>: one line per method or field whose name matches, "Type::member(sig)"
+    var rx = new System.Text.RegularExpressions.Regex(needles[1]);
+    foreach (var th in md.TypeDefinitions)
+    {
+        var t = md.GetTypeDefinition(th);
+        var full = (Name(t.Namespace).Length > 0 ? Name(t.Namespace) + "." : "") + Name(t.Name);
+        foreach (var mh in t.GetMethods())
+        {
+            var m = md.GetMethodDefinition(mh);
+            var n = Name(m.Name);
+            if (n.StartsWith("NativeMethodInfoPtr") || !rx.IsMatch(n)) continue;
+            var dec = m.DecodeSignature(new SigProv(md), null);
+            Console.WriteLine(full + "::" + ((m.Attributes & System.Reflection.MethodAttributes.Static) != 0 ? "static " : "") + dec.ReturnType + " " + n + "(" + string.Join(", ", dec.ParameterTypes) + ")");
+        }
+        foreach (var fh in t.GetFields())
+        {
+            var f = md.GetFieldDefinition(fh);
+            var n = Name(f.Name);
+            if (n.StartsWith("NativeFieldInfoPtr") || !rx.IsMatch(n)) continue;
+            Console.WriteLine(full + "::field " + f.DecodeSignature(new SigProv(md), null) + " " + n);
+        }
+    }
+    return;
+}
 bool memberMode = needles.Length > 1 && needles[0] == "--member";
 if (memberMode) needles = needles.Skip(1).ToArray();
 foreach (var th in md.TypeDefinitions)

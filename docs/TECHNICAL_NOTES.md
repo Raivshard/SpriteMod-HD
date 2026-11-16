@@ -47,6 +47,15 @@ Also: shader pass index = the pass's order in the `.shader` file, not its label.
 - Animation is data in each background prefab: Animators whose clips swap the sprite on fixed SpriteRenderers (sheet `<BG>_Animtex`, or `BG_FF5_18_A`). No clip moves a piece. Prefab units = original px, background centre = (0,0). Background 31 scrolls a material on a mesh instead. [verified, prefab dumps]
 - A larger `_Animtex` sheet through KupoUI is copied into the original texture, but the pieces keep their original rects, so they show the wrong areas. Hence per-frame HD files. [verified]
 
+## Field maps and tiles
+
+- Maps are **Tiled** JSON (`tilemap.json`, Tiled 1.3.5): a group with tile layers `BottomLayer`, `GroundLayer`, `UpperLayer`, `CeilLayer`, one tile number per cell; embedded tilesets with `firstgid`; 16 px tiles on 512x512 sheets `map_chip_NNN.png` (32 x 32 tiles). Tile animations are per tile in the tileset's `tiles` list. [verified, export]
+- Walkability is **per map cell** in `collision.json` (`GroundCollision`, `UpperCollision`, `BottomCollision`), not per tile; new tile art never changes where you can walk. [verified]
+- Each map layer is a mesh (`MapLayerMesh`) whose material draws one sheet; UVs come from `MapTileGroupData.TexUVTable`. The same sheet is drawn by `MainViewMapRenderer`, `BirdViewMapRenderer`, `WaterViewMapRenderer` and `MinimapViewMapRenderer` under `RootObject/RootFiled/MapRenderer`. [verified, interop dump + log]
+- A larger sheet loaded by the game (Magicite, or KupoUI by file name) does not display correctly; the plugin lets the game load its own sheet and then sets the material texture, so any size with the same layout works. KupoUI loads any `<sheet>.png` under `Modules\` by name, hence the plugin's `.hd.png` names. [verified]
+- 23 sheet names have different art in different map packages (e.g. `map_chip_063`, 8 versions). The current package is the `Map_NNNNN` child of the `RootObject` that holds `RootFiled/MapRenderer`; `GameObject.Find("RootObject")` can return a different object. [verified]
+- 439 sheet versions hold 31,648 distinct tile images; 12,875 are placed on maps or are animation frames. [verified, counted]
+
 ## UI
 
 - Element paths: the F8 dump prints them. `(Clone)` suffixes vary between screens; the plugin ignores them. [verified]

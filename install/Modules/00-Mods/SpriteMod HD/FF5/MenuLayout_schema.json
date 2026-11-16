@@ -22,6 +22,9 @@
       }
     },
     "kupoTextureCache": { "type": "boolean", "description": "true = reuse a GPU copy of KupoUI's whole-texture replacements. Live. Main file only." },
+    "fieldStrideDelay": { "type": "object", "description": "EXPERIMENTAL. fieldSprites: seconds the previous (passing) frame stays into each stride, per walk: \"Default\" (front), \"WalkB\" (back), \"WalkL\" (side). The game shows each walk frame 0.10 s; max 0.09. Live. Main file only.", "additionalProperties": { "type": "number", "minimum": 0, "maximum": 0.09 } },
+    "fieldSpritesDebug": { "type": "boolean", "description": "Diagnostic: log every frame the game sets on a field character ([FieldDbg], max 400 lines). Leave out or false. Live. Main file only." },
+    "fieldSprites": { "type": "boolean", "description": "EXPERIMENTAL (walk timing still follows the game). true = field (map) character frames from GameAssets/Serial/Res/Chara/Map/MO_FF5_<id>/<frame>.png beside this file (size file <frame>.json pixelsPerUnit). Live. Main file only." },
     "kupoSkipUnreadable": { "type": "boolean", "description": "Harmful (removes custom menu art); leave out or false. Main file only." },
     "kupoFastUnreadable": { "type": "boolean", "description": "true = faster KupoUI swap for locked UI textures, same look. Live. Main file only." },
     "textureLimit": { "type": "integer", "minimum": 0, "maximum": 3, "description": "Texture quality: 0 = full size, 1 = half (the game's own), 2 = quarter. Missing = game's own." },
@@ -38,6 +41,8 @@
         "spriteCameras": { "type": "array", "items": { "type": "string" }, "description": "Cameras that move with spritesDown." },
         "resolutionScale": { "type": "number", "description": "Test setting; leave 0." },
         "hdPixelsPerUnit": { "type": "number", "minimum": 0, "description": "HD battle character and enemy textures: texture px per battle unit. 6.667 (default) = a 248 px image shows 248 px tall at 1440p. 0 = off." },
+        "customScale": { "type": "number", "minimum": 0.25, "maximum": 8, "description": "On-screen size of replaced party sprites drawn at game-art density (texture up to 2x the game's, e.g. 64 px PSP-style sets), 1.5 = 50% larger. 1 (default) = game size. HD art keeps hdPixelsPerUnit. Needs hdPixelsPerUnit on." },
+        "miniScale": { "type": "number", "minimum": 0, "maximum": 1, "description": "UNVERIFIED (not yet tested in-game). Mini status: the member keeps its normal job sprites, shown this much smaller (0.5 = half size). Default 0.5; 0 = off (the game's own Mini sprites). Needs hdPixelsPerUnit on." },
         "enemyOnTop": { "type": "array", "items": { "type": "string" }, "description": "Enemy texture-name prefixes (e.g. MN_FF5_127) drawn above the other enemies." },
         "partyRight": { "type": "number", "description": "Move every party member (sprite and shadow) right, px at 1440p; negative = left. Live; 0 = off. Needs hdPixelsPerUnit on." },
         "partyDown": { "type": "number", "description": "Move every party member (sprite and shadow) down, px at 1440p; negative = up. Adds to spritesDown. Live; 0 = off." },

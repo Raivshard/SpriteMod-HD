@@ -77,6 +77,21 @@ Check the result in battle with `battle.groundShadow.debug: true` (bodies show g
 
 **Animated parts** (torches, water, lights in backgrounds 05, 08, 12, 18, 20, 22, 23, 26): HD frames go in `battle_backgrounds\animtex\`, placed by a `_place.json`. Guide: `battle_backgrounds\animtex\README.md`. Tool: `source\tools\animtex_fit.py` finds where each frame sits on your HD background and writes the `_place.json`. Background 31 (scrolling texture) is not supported yet.
 
+## Map tile sheets (towns, dungeons, world map)
+
+| Item | Details |
+|---|---|
+| Folder / file | `map_tiles\map_chip_147.hd.png` (the game's sheet name + `.hd.png`) |
+| Size | Same layout as the game's 512x512 sheet (32 x 32 tiles of 16 px), any size with the same shape; whole multiples keep tile edges on pixels (1024 = 2x, 2048 = 4x) |
+| Why `.hd.png` | KupoUI loads any `<sheet>.png` under `Modules` by name into the game's sheet, which breaks larger sheets. The plugin keeps the game's sheet and swaps the HD file in on every map view (main, minimap, bird view, water) |
+| Which sheet | Each map's `tilemap.json` names its sheet (`"image": "map_chip_147.png"`); the game's export has them under `map_NNNNN\...\Res\Map\Map_NNNNN\` |
+| Same name, other art | 23 sheet names have different art in different maps (e.g. `map_chip_063`). Put those in `map_tiles\map_NNNNN\<sheet>.hd.png` (the map package); it wins over the shared file |
+| Live | Saving the file updates the map within a second. Log lines start with `[MapTiles]` |
+
+Keep each tile inside its own 16 px cell (scaled). Upscaling a whole sheet at once can blend neighbouring tiles, which sit next to unrelated tiles on the sheet.
+
+**Tile by tile:** `source\tools\map_tiles\map_tile_catalog.py` lists every tile image of the game once (about 12,900 are used on maps) with where it is used. Replace a tile once and `map_tiles_pack.py build` puts it into every sheet that has it; `import` cuts a whole HD sheet into tiles; overrides cover one tile of one sheet. Tool: `source\tools\map_tiles_hd.py` (whole-pixel enlargement; `--grid` draws test lines on tile edges).
+
 ## Loading animation
 
 PNG frames in `loading_icon\`, named in play order (`00.png`, `01.png`…), square, any size. Speed and size: `loadingIcon` in `MenuLayout.json`. Applies within 2 s.

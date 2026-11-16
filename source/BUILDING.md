@@ -43,7 +43,10 @@ Set the game folder once per terminal if it isn't the Steam default: `set FF5_GA
 | `rename_font.py` | Make a font copy with its own family name (see `FONTS.md`) |
 | `old_pc_dat.py <dat folder> <out folder> [--force]` | Convert image `.dat` files from the old (2015) FF5 PC release and its mods to PNG. Each such file is a 4-byte `INP` header followed by a complete PNG (checked on 479 files from one sprite mod); the PNG bytes are saved unchanged |
 | `cut_sheet_frames.py <png folder> <out folder> [--map map.json] [--dry-run] [--force]` | Cut sprite sheets with transparent gaps into single frames, pixels and palette unchanged. Prints a check that every visible pixel landed in exactly one frame, and lists poses that look like stray dots or merged poses. `--map` sorts sheets into folders (`{"sheet name": "folder"}`). Tested on 465 sheets from the old PC release |
-| `il2cpp_dump` | `dotnet run --project tools\il2cpp_dump -- <interop dll> <Type> [--member name] [--strings regex]` |
+| `map_tiles_hd.py <game sheet.png> <out.png> [--scale N] [--grid] [--force]` | HD map sheet with the game sheet's exact layout: whole-pixel enlargement (checks every pixel); `--grid` draws test lines on tile edges |
+| `map_tiles\map_tile_catalog.py [--export <MagiciteExport>] [--out <dir>] [--force]` | Catalogue of every map tile image (one item per distinct 16 px tile), with every sheet, map, layer, animation and collision value it is used with. Reads the game's Magicite export; `labels.csv` is never overwritten |
+| `map_tiles\map_tiles_pack.py import / build / compare` | `import` cuts an HD sheet into shared items (plus per-sheet overrides where an item already has other art); `build` writes `<sheet>.hd.png` for every sheet that uses a replaced item (per-map folders for the 23 sheet names with several versions); `compare` checks a built sheet tile by tile |
+| `il2cpp_dump` | `dotnet run --project tools\il2cpp_dump -- <interop dll> <Type> [--member name] [--grep regex] [--strings regex]` (`--grep`: every `Type::member` whose name matches) |
 
 All tools read game files only; none write into the game's own data. The two old-PC tools read only the folder you give them and refuse to overwrite their output unless `--force`.
 

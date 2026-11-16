@@ -31,6 +31,8 @@ namespace FF5MenuSprites
         static int hits, stored, fails, warned;
         static long bytes;
         static int nextReport = 500;
+        static int nBattleSkip;
+        static bool battleSkipLogged;
 
         internal static void Install(HarmonyLib.Harmony h)
         {
@@ -138,7 +140,7 @@ namespace FF5MenuSprites
             float now = Time.realtimeSinceStartup;
             if (now < nextStats) return;
             nextStats = now + 10f;
-            Plugin.L.LogWarning($"[KupoCache] calls {nCalls}: off {nOff}, already done {nDone}, failed key {nFailedKey}, first time {nNew}, cached copy gone {nDead}, KupoUI did not swap {nNotSwapped}, reused {hits}; kept {stored} (~{bytes / (1024 * 1024)} MB), fell back {fails} | non-readable: seen {nUnreadIn}, KupoUI swapped {nUnreadSwapped}, skipped {nUnreadSkipped} (skip {(SkipUnreadable ? "on" : "off")}), fast path {nFast} (failed {nFastFail}, files in memory {fileBytes.Count}, {fileBytesTotal / (1024 * 1024)} MB, {(FastUnreadable ? "on" : "off")}) (info, not an error)");
+            Plugin.L.LogWarning($"[KupoCache] calls {nCalls}: off {nOff}, battle sprites left to KupoUI {nBattleSkip}, already done {nDone}, failed key {nFailedKey}, first time {nNew}, cached copy gone {nDead}, KupoUI did not swap {nNotSwapped}, reused {hits}; kept {stored} (~{bytes / (1024 * 1024)} MB), fell back {fails} | non-readable: seen {nUnreadIn}, KupoUI swapped {nUnreadSwapped}, skipped {nUnreadSkipped} (skip {(SkipUnreadable ? "on" : "off")}), fast path {nFast} (failed {nFastFail}, files in memory {fileBytes.Count}, {fileBytesTotal / (1024 * 1024)} MB, {(FastUnreadable ? "on" : "off")}) (info, not an error)");
         }
 
         static bool Prefix(Texture2D __0, string __1, string __2, ref bool __result, out string __state)
@@ -149,6 +151,15 @@ namespace FF5MenuSprites
                 nCalls++;
                 Stats();
                 if (!Enabled || __0 == null || string.IsNullOrEmpty(__1) || !Supported()) { nOff++; return true; }
+                // Battle character poses go to KupoUI untouched: with the cache, a party member with a full replaced
+                // pose set fell back to the game's own sprite after taking damage; with the cache off it did not
+                // [verified once, user 2026-11-14; the cause inside the cache is not known].
+                if (__2 != null && __2.IndexOf("/Chara/Battle/", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    nBattleSkip++;
+                    if (!battleSkipLogged) { battleSkipLogged = true; Plugin.L.LogWarning("[KupoCache] battle character sprites are left to KupoUI's own swap (info, not an error)"); }
+                    return true;
+                }
                 int id = __0.GetInstanceID();
                 if (kupoDone.Contains(id)) { nDone++; return true; }  // KupoUI returns false at once
                 lastUnreadable = !__0.isReadable;

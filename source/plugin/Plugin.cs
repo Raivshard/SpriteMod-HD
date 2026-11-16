@@ -25,7 +25,7 @@ namespace FF5MenuSprites
     {
         /// <summary>Project version v0.M.SS.mm (milestone 0-9; small and minor two digits each), tracked in HANDOFF.md. BepInEx keeps only the first
         /// three parts (BepInPlugin.TryParseLongVersion), so the full string is logged on load.</summary>
-        internal const string Version = "0.1.23.27";
+        internal const string Version = "0.1.25.29";
         internal static ManualLogSource L;
         internal static string ConfigPath;
         static Canvas.WillRenderCanvases afterLayout; // kept referenced so it isn't collected
@@ -84,10 +84,13 @@ namespace FF5MenuSprites
             NameFix.Install(harmony);
             Cleanup.Install(harmony);
             ScrollSpacing.Install(harmony);
+            FieldSprites.Install(harmony);
             try { KupoTextureCache.Install(harmony); }
             catch (Exception e) { Log.LogWarning("[KupoCache] could not start: " + e.Message); }
             try { GameProfiler.ReadSwitch(ConfigPath); GameProfiler.Install(harmony); }
             catch (Exception e) { Log.LogWarning("[GameProf] could not start: " + e.Message); }
+            try { MiniPatches.Install(harmony); Log.LogInfo("[Mini] patches applied"); }
+            catch (Exception e) { Log.LogWarning("[Mini] patches failed (Mini shows the game's own Mini sprites): " + e.Message); }
             try { BattleCursorPatches.Install(harmony); Log.LogInfo("[Battle] cursor patches applied"); }
             catch (Exception e) { Log.LogWarning("[Battle] cursor patches failed (the arrow keeps the game's place): " + e.Message); }
             try
@@ -477,6 +480,13 @@ namespace FF5MenuSprites
                         TextureLimit.Want = root.TryGetProperty("textureLimit", out var tl) && tl.ValueKind == JsonValueKind.Number ? Mathf.Clamp(tl.GetInt32(), 0, 3) : -1;
                         TextureLimit.Apply();
                         KupoTextureCache.Enabled = root.TryGetProperty("kupoTextureCache", out var ktc) && ktc.ValueKind == JsonValueKind.True;
+                        FieldSprites.Enabled = root.TryGetProperty("fieldSprites", out var fsp) && fsp.ValueKind == JsonValueKind.True;
+                        FieldSprites.Debug = root.TryGetProperty("fieldSpritesDebug", out var fsd) && fsd.ValueKind == JsonValueKind.True;
+                        var sdl = new Dictionary<string, float>();
+                        if (root.TryGetProperty("fieldStrideDelay", out var fsdl) && fsdl.ValueKind == JsonValueKind.Object)
+                            foreach (var kv in fsdl.EnumerateObject())
+                                if (!kv.Name.StartsWith("_") && kv.Value.ValueKind == JsonValueKind.Number) sdl[kv.Name] = kv.Value.GetSingle();
+                        FieldSprites.StrideDelay = sdl;
                         KupoTextureCache.SkipUnreadable = root.TryGetProperty("kupoSkipUnreadable", out var ksu) && ksu.ValueKind == JsonValueKind.True;
                         KupoTextureCache.FastUnreadable = root.TryGetProperty("kupoFastUnreadable", out var kfu) && kfu.ValueKind == JsonValueKind.True;
                         Cleanup.SkipGcCollect = false; Cleanup.UnloadEveryMinutes = 0f;
@@ -529,6 +539,8 @@ namespace FF5MenuSprites
                         if (bt3.TryGetProperty("spriteCameras", out var sc) && sc.ValueKind == JsonValueKind.Array) BattleShift.Cameras = Strings(sc);
                     }
                     BattleCharScale.Ppu = root.TryGetProperty("battle", out var bt4) && bt4.TryGetProperty("hdPixelsPerUnit", out var hp) && hp.ValueKind == JsonValueKind.Number ? hp.GetSingle() : 6.667f;
+                    BattleCharScale.CustomScale = bt4.ValueKind == JsonValueKind.Object && bt4.TryGetProperty("customScale", out var cs) && cs.ValueKind == JsonValueKind.Number ? Mathf.Clamp(cs.GetSingle(), 0.25f, 8f) : 1f;
+                    BattleCharScale.MiniScale = bt4.ValueKind == JsonValueKind.Object && bt4.TryGetProperty("miniScale", out var mns) && mns.ValueKind == JsonValueKind.Number ? Mathf.Clamp(mns.GetSingle(), 0f, 1f) : 0.5f;
                     BattleCharScale.PartyRight = BattleCharScale.PartyDown = BattleCharScale.BackRowPx = BattleCharScale.DepthScale = 0f;
                     BattleCharScale.PartySlots = new List<Vector2>();
                     BattleCharScale.GsOn = BattleCharScale.GsHideGame = BattleCharScale.GsDebug = false;
@@ -912,6 +924,16 @@ namespace FF5MenuSprites
     static class BattleCharScale
     {
         internal static float Ppu = 6.667f;
+        /// <summary>"battle.customScale": on-screen size factor for replaced party sprites drawn at game-art density
+        /// (texture at most 2x the mesh, KupoUI name "..._Custom" [verified, F8 dump 2026-11-07]), e.g. 1.5 for the
+        /// PSP sets kept at their real 64 px size (user, 2026-11-15). 1 = game size. HD art (texture wider than 2x the
+        /// mesh) keeps the hdPixelsPerUnit sizing.</summary>
+        internal static float CustomScale = 1f;
+        /// <summary>"battle.miniScale": size of a party member under Mini, as a share of its normal on-screen size. The
+        /// game's own Mini set is replaced by the member's normal job set (MiniPatches), so no Mini art is needed
+        /// (user, 2026-11-15). Default 0.5 (vanilla Mini is 11-12 px tall vs 23-24 px [measured, Extracted M vs J00]).
+        /// 0 = off: the game's own Mini sprites.</summary>
+        internal static float MiniScale = 0.5f;
         internal static float PartyRight, PartyDown;
         /// <summary>"battle.partySlots": [[right, down], ...] px at 1440p for slots 1-4 (top first), added to partyRight/partyDown.</summary>
         internal static List<Vector2> PartySlots = new List<Vector2>();
@@ -1304,6 +1326,13 @@ namespace FF5MenuSprites
                 float meshH = Mathf.Max(0.001f, b.size.y);
                 bool partyShadow = s.Shadow && !s.Enemy;
                 float k = !partyShadow && tex.width > 2f * meshW ? (tex.width / Ppu) / meshW : 1f;
+                if (k == 1f && !s.Enemy && !partyShadow && CustomScale != 1f && tex.name != null && tex.name.EndsWith("_Custom"))
+                    k = CustomScale;
+                if (!s.Enemy && !s.Shadow && MiniScale > 0f && MiniPatches.IsMini(s.Ent))
+                {
+                    k *= MiniScale;
+                    MiniPatches.Log($"party slot {s.Slot} '{tex.name}' under Mini: shown x{k:0.###} (miniScale {MiniScale:0.###})");
+                }
                 float ky = k;
                 if (s.Enemy && k != 1f) ky = (tex.height / Ppu) / meshH;   // enemies: per axis (HD art may be wider)
                 // depthScale: feet height on screen (0 bottom, 1 top of the battle view). The feet stay put under the
@@ -1372,8 +1401,10 @@ namespace FF5MenuSprites
                         // feet = minus the partySlots/backRowShift offset]. px at 1440p -> world units.
                         memberOffset.TryGetValue(s.PL.Pointer, out var mo);
                         var off = new Vector3(mo.x * unitsPerPx, -mo.y * unitsPerPx, 0f);
-                        Weapon(s, s.Ent.BattleWeaponRight, f, feet, off);
-                        Weapon(s, s.Ent.BattleWeaponLeft, f, feet, off);
+                        // The weapon also gets the body's HD size factor k (user, 2026-11-14: weapons looked far too
+                        // small next to 1.5x PSP bodies; they had depthScale only), around the same feet.
+                        Weapon(s, s.Ent.BattleWeaponRight, f * k, feet, off);
+                        Weapon(s, s.Ent.BattleWeaponLeft, f * k, feet, off);
                     }
                     catch (Exception e) { s.Ent = null; Plugin.L.LogWarning("[Battle] depthScale: weapon scaling failed (weapons keep the game's size): " + e.Message); }
                 if (s.Shadow && !loggedShadow && k != 1f)
@@ -1399,8 +1430,9 @@ namespace FF5MenuSprites
         }
 
         /// <summary>
-        /// depthScale for a weapon: the game's own place and scale (re-read whenever the game sets them) scaled by the
-        /// member's factor around the member's feet, so the weapon stays in the shrunk hand. Weapons are not under
+        /// depthScale and HD size for a weapon: the game's own place and scale (re-read whenever the game sets them)
+        /// scaled by the member's factor (depthScale x HD body scale) around the member's feet, so the weapon stays
+        /// in the scaled hand [inferred: the art's hand must sit where the scaled vanilla hand would]. Weapons are not under
         /// CharaObject/Mesh [inferred: user saw them keep full size with depthScale on, 2026-11-12].
         /// </summary>
         static void Weapon(St s, Last.Battle.BattleWeapon w, float f, Vector3 feet, Vector3 off)
@@ -1837,6 +1869,79 @@ namespace FF5MenuSprites
             h.Patch(HarmonyLib.AccessTools.Method(t, nameof(Last.UI.BattleCursorUtility.SetSelectedPlayer)), postfix: pp);
             h.Patch(HarmonyLib.AccessTools.Method(t, nameof(Last.UI.BattleCursorUtility.SetTargetPlayer)), postfix: pp);
             h.Patch(HarmonyLib.AccessTools.Method(t, nameof(Last.UI.BattleCursorUtility.SetTargetEnemy)), postfix: ep);
+        }
+    }
+
+    /// <summary>
+    /// Mini without Mini art (user, 2026-11-15): the game loads a party member's battle poses with
+    /// Last.Battle.InstantiateManager.LoadPlayerMotions(Int32, Int32, ConditionType) and swaps them with
+    /// ChangePlayerMotions(BattlePlayerEntity, Int32, Int32, ConditionType) [verified, interop dump]. Mini is
+    /// Last.Defaine.ConditionType.Child = 401 [verified: enum value; condition.csv row 13 has type 401; Old = Aging = 32
+    /// and Zombie = 34 match their named rows]. When the game asks for the Mini set, it is asked for the normal set
+    /// (ConditionType.Non) instead, and BattleCharScale shows that member at battle.miniScale. The first Int32 is taken
+    /// to be the character status id (BattlePlayerEntity.CharacterStatusId) [inferred; every call is logged with the
+    /// entity's own ids to check]. Known gap: Mini together with Old or Zombie loads the plain set [inferred].
+    /// </summary>
+    static class MiniPatches
+    {
+        /// <summary>First Int32 of the last motion load (character status id [inferred]) -> Mini on.</summary>
+        static readonly Dictionary<int, bool> miniByChara = new Dictionary<int, bool>();
+        static readonly HashSet<string> logged = new HashSet<string>();
+        static bool warned;
+
+        internal static void Log(string s)
+        {
+            if (logged.Count < 500 && logged.Add(s)) Plugin.L.LogWarning("[Mini] " + s + " (info, not an error)");
+        }
+
+        static void Warn(Exception e)
+        {
+            if (warned) return;
+            warned = true;
+            Plugin.L.LogWarning("[Mini] patch failed (the game's own Mini sprites are used): " + e.Message);
+        }
+
+        internal static bool IsMini(Last.Battle.BattlePlayerEntity e)
+        {
+            try { return e != null && !e.WasCollected && miniByChara.TryGetValue(e.CharacterStatusId, out var m) && m; }
+            catch (Exception ex) { Warn(ex); return false; }
+        }
+
+        static void LoadPre(int __0, int __1, ref Last.Defaine.ConditionType __2)
+        {
+            try
+            {
+                if (BattleCharScale.MiniScale <= 0f) return;
+                bool mini = __2 == Last.Defaine.ConditionType.Child;
+                miniByChara[__0] = mini;
+                Log($"LoadPlayerMotions({__0}, {__1}, {__2})" + (mini ? $" -> normal set, shown x{BattleCharScale.MiniScale:0.###}" : ""));
+                if (mini) __2 = Last.Defaine.ConditionType.Non;
+            }
+            catch (Exception e) { Warn(e); }
+        }
+
+        static void ChangePre(Last.Battle.BattlePlayerEntity __0, int __1, int __2, ref Last.Defaine.ConditionType __3)
+        {
+            try
+            {
+                if (BattleCharScale.MiniScale <= 0f) return;
+                bool mini = __3 == Last.Defaine.ConditionType.Child;
+                miniByChara[__1] = mini;
+                string ids = __0 != null ? $"entity status id {__0.CharacterStatusId}, job {__0.JobId}" : "no entity";
+                Log($"ChangePlayerMotions({ids}; {__1}, {__2}, {__3})" + (mini ? $" -> normal set, shown x{BattleCharScale.MiniScale:0.###}" : ""));
+                if (mini) __3 = Last.Defaine.ConditionType.Non;
+            }
+            catch (Exception e) { Warn(e); }
+        }
+
+        internal static void Install(HarmonyLib.Harmony h)
+        {
+            var t = typeof(Last.Battle.InstantiateManager);
+            const System.Reflection.BindingFlags F = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+            h.Patch(HarmonyLib.AccessTools.Method(t, nameof(Last.Battle.InstantiateManager.LoadPlayerMotions)),
+                prefix: new HarmonyLib.HarmonyMethod(typeof(MiniPatches).GetMethod(nameof(LoadPre), F)));
+            h.Patch(HarmonyLib.AccessTools.Method(t, nameof(Last.Battle.InstantiateManager.ChangePlayerMotions)),
+                prefix: new HarmonyLib.HarmonyMethod(typeof(MiniPatches).GetMethod(nameof(ChangePre), F)));
         }
     }
 
@@ -5409,6 +5514,10 @@ namespace FF5MenuSprites
                 try { GameProfiler.Frame(); } catch (Exception e) { Plugin.L.LogWarning("[GameProf] " + e.Message); }
                 try { ScreenDump.Poll(); }
                 catch (Exception e) { Plugin.L.LogWarning("[Dump] " + e.Message); }
+                try { FieldSprites.Tick(); }
+                catch (Exception e) { Plugin.L.LogWarning("[Field] " + e.Message); }
+                try { FieldTiles.Tick(); }
+                catch (Exception e) { Plugin.L.LogWarning("[MapTiles] " + e.Message); }
                 // Objects the game switched on since last frame: check only those (no scene sweeps).
                 long t0 = Perf.Start();
                 if (Discovery.Pending.Count > 0)
