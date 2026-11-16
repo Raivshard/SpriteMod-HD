@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.26.30 (2026-11-15)
+
+### Fixed
+
+- `battle.depthScale`: a party member no longer goes back to full size after an ability that moves them (Kick and similar).
+
 ## v0.1.26.29 (2026-11-15)
 
 ### New

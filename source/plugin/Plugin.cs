@@ -25,7 +25,7 @@ namespace FF5MenuSprites
     {
         /// <summary>Project version v0.M.SS.mm (milestone 0-9; small and minor two digits each), tracked in HANDOFF.md. BepInEx keeps only the first
         /// three parts (BepInPlugin.TryParseLongVersion), so the full string is logged on load.</summary>
-        internal const string Version = "0.1.26.29";
+        internal const string Version = "0.1.26.30";
         internal static ManualLogSource L;
         internal static string ConfigPath;
         static Canvas.WillRenderCanvases afterLayout; // kept referenced so it isn't collected
@@ -987,7 +987,21 @@ namespace FF5MenuSprites
             public St GS; public string GsState;
             public float RestGap = float.MaxValue; public bool LiftLogged, HideOn;
             // groundShadow anchors: mesh-local points (sorted by x) and texture px; source "auto" or "file"
-            public List<Vector2> Anch, AnchTexPts; public float AnchTime = -10f; public IntPtr AnchTex; public uint AnchUpd; public string AnchSrc; public long AnchStamp; public bool AnchLogged, UpdLogged, FlyHide; public int AnchW; public float LiftW; }
+            public List<Vector2> Anch, AnchTexPts; public float AnchTime = -10f; public IntPtr AnchTex; public uint AnchUpd; public string AnchSrc; public long AnchStamp; public bool AnchLogged, UpdLogged, FlyHide; public int AnchW; public float LiftW;
+            // party RestGap: a lower gap counts only once it holds for RestHold seconds (CandGap since CandT)
+            public float CandGap = float.NaN, CandT;
+            }
+        /// <summary>
+        /// Seconds a party member's lower feet-to-shadow gap must hold before it becomes the standing gap. The user saw
+        /// depthScale drop for one member after Kick (2026-11-15: "reverted back to normal for that character only";
+        /// F8: mesh scale 1.6 = customScale alone; log: "lifted 55.5 units" in one step) [inferred: a moment during the
+        /// ability lowered the all-time minimum, so the member then read as lifted for good, and depthScale took its
+        /// size from far below the screen]. Confirmed after the fix [verified, log 2026-11-15]: during Kick the gap fell
+        /// to -189.7 for a few frames while the standing gap stayed 0.3; the user: "works". Abilities move members only
+        /// briefly; standing holds.
+        /// </summary>
+        const float RestHold = 0.3f;
+        static int depthDiag;
         /// <summary>A party member's weapon sprite (BattlePlayerEntity.BattleWeaponRight/Left [verified, interop dump]), depthScale only.</summary>
         class WSt { public Transform T; public Vector3 BasePos, BaseScale, SetPos, SetScale; public bool On, Logged; }
         static readonly Dictionary<IntPtr, WSt> weapons = new Dictionary<IntPtr, WSt>();
@@ -1205,7 +1219,7 @@ namespace FF5MenuSprites
             // destroyed when the battle ends. A battle counts as over after 2 s without the camera.
             if (battle == null)
             {
-                if (inBattle && Time.unscaledTime - lastSeen > 2f) { inBattle = false; logged = false; loggedEnemy = false; loggedOrder = false; loggedShadow = false; frontX0 = float.NaN; memberOffset.Clear(); corpsMember.Clear(); cursorCorps.Clear(); weapons.Clear(); memberBody.Clear(); enemyBody.Clear(); cursorEnemy.Clear(); loggedEnemyLink = false; castBroken = false; GpuShadow.Frame(null, false, false); }
+                if (inBattle && Time.unscaledTime - lastSeen > 2f) { inBattle = false; logged = false; loggedEnemy = false; loggedOrder = false; loggedShadow = false; frontX0 = float.NaN; depthDiag = 0; memberOffset.Clear(); corpsMember.Clear(); cursorCorps.Clear(); weapons.Clear(); memberBody.Clear(); enemyBody.Clear(); cursorEnemy.Clear(); loggedEnemyLink = false; castBroken = false; GpuShadow.Frame(null, false, false); }
             }
             else lastSeen = Time.unscaledTime;
             // Battle just started: search now and then every 0.2 s for 6 s (user: a 3 s search interval left the
@@ -1741,7 +1755,19 @@ namespace FF5MenuSprites
                 var gm = gs.F != null ? gs.F.sharedMesh : null;
                 var gc = gs.T.TransformPoint(gm != null ? gm.bounds.center : Vector3.zero);
                 gap = lowW - gc.y;
-                if (gap < s.RestGap) s.RestGap = gap;
+                if (s.Enemy || s.RestGap == float.MaxValue) { if (gap < s.RestGap) s.RestGap = gap; }
+                else if (gap < s.RestGap - 0.5f)
+                {
+                    // party: a lower gap must hold RestHold seconds (see RestHold) before it counts as standing
+                    float now = Time.unscaledTime;
+                    if (float.IsNaN(s.CandGap) || Mathf.Abs(gap - s.CandGap) > 0.5f) { s.CandGap = gap; s.CandT = now; }
+                    else if (now - s.CandT >= RestHold)
+                    {
+                        if (depthDiag < 300) { depthDiag++; Plugin.L.LogWarning($"[Battle] groundShadow party slot {s.Slot}: standing gap {s.RestGap:0.##} -> {gap:0.##} (held {now - s.CandT:0.##} s) (info)"); }
+                        s.RestGap = gap; s.CandGap = float.NaN;
+                    }
+                }
+                else s.CandGap = float.NaN;
                 // Standing bodies sit about 2 units above their shadow's centre [verified, F8 dump 2026-11-12: party
                 // mesh y -32, shadow y -34]; a flyer never comes down (Zu: 9.09 units [verified, log 2026-11-12]).
                 // Up to FlyGap the smallest gap counts as standing (ground points pinned); above it the body is in
