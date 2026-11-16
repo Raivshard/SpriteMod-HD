@@ -15,7 +15,7 @@
   "_kupoTextureCache": "true = keep a graphics-card copy of KupoUI's full-texture replacements (title background, menu images) and reuse it on every menu load; battle character sprites are always left to KupoUI. false = KupoUI's normal behaviour. Live. README: kupoTextureCache.",
   "kupoTextureCache": true,
   "_fieldSprites": "true = field (map) character frames from GameAssets\\Serial\\Res\\Chara\\Map\\MO_FF5_<id>\\<frame>.png here (KupoUI cannot swap them: same frame names as battle). Live. README: fieldSprites.",
-  "fieldSprites": false,
+  "fieldSprites": true,
   "_fieldStrideDelay": "Seconds added per walk frame: [first, middle, last] = stride A, passing, stride B, or one number = middle only (max 0.5 each). Default = front, WalkB = back, WalkL = side. Live. README: fieldStrideDelay.",
   "fieldStrideDelay": { "WalkL": [0.1, 0.02, 0.1], "Default": [0.1, 0.02, 0.1], "WalkB": [0.1, 0.02, 0.1] },
   "fieldSpritesDebug": false,
