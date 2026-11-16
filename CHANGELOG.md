@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.1.25.29 (2026-11-15)
+## v0.1.26.29 (2026-11-15)
 
 ### New
 
@@ -9,7 +9,8 @@
 - **Map tile tools** (`source\tools\map_tiles\`): a catalogue of every tile image in the game (about 12,900 in use); replace a tile once and rebuild every sheet that uses it; import a whole HD sheet; compare tile by tile. Plus `map_tiles_hd.py` for whole-pixel enlargements and grid test sheets.
 - **`battle.customScale`**: shows replaced party sprites drawn at the game's pixel density (e.g. 64 px sets) larger on screen, feet kept. Keep the files at their real size.
 - **`battle.miniScale`** *(unverified, not yet tested in-game)*: under Mini, a party member keeps their normal sprites, shown smaller (default half size). No Mini art needed.
-- **`fieldSprites`** *(experimental)*: HD frames for field (map) characters, which KupoUI cannot swap. Walk timing still follows the game. Off in the starter settings.
+- **`fieldSprites`** *(experimental)*: HD frames for field (map) characters, which KupoUI cannot swap. Off in the starter settings.
+- **`fieldStrideDelay`** *(experimental)*: longer walk frames per direction, `[first, middle, last]` = stride, passing pose, other stride. Each frame keeps the game's time plus its own; each tap starts on the other stride.
 - `il2cpp_dump --grep <regex>`: find any game method or field by part of its name.
 
 ### Changed

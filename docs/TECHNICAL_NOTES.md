@@ -56,6 +56,13 @@ Also: shader pass index = the pass's order in the `.shader` file, not its label.
 - 23 sheet names have different art in different map packages (e.g. `map_chip_063`, 8 versions). The current package is the `Map_NNNNN` child of the `RootObject` that holds `RootFiled/MapRenderer`; `GameObject.Find("RootObject")` can return a different object. [verified]
 - 439 sheet versions hold 31,648 distinct tile images; 12,875 are placed on maps or are animation frames. [verified, counted]
 
+## Field characters
+
+- Field characters are `SpriteRenderer`s whose frames (`Default_00`, `WalkL_01`, ...) are cut from one atlas per character (`sactx-...-MO_FF5_P001_C00-...`). KupoUI looks sprites up by name only, and battle sets use the same names, so it cannot swap them; the plugin hooks `SpriteRenderer.sprite` and finds the folder from the atlas name. [verified]
+- Walks are 2 frames (`_01` then `_00`), 0.10 s each in every direction; `_00` is also the frame shown at rest. Right-facing walks are the left frames flipped. [verified, `anim_info.json` + log]
+- `anim_info.json` frames carry `offsetx`/`offsety` in game pixels; the only walk offset is `WalkL_01` `offsety` 1.0 (all five party members). The game applies them in `SpriteAnimLastFieldEntity.ReflectFrameData(Int32)`; the plugin reads them there and cancels them for replaced frames. [verified]
+- The game cannot make one walk frame longer without shortening the next, so for walks listed in `fieldStrideDelay` the plugin runs its own frame clock and uses the game's frame changes only as "still walking" and for the direction. [verified in-game]
+
 ## UI
 
 - Element paths: the F8 dump prints them. `(Clone)` suffixes vary between screens; the plugin ignores them. [verified]

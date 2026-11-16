@@ -25,7 +25,7 @@ namespace FF5MenuSprites
     {
         /// <summary>Project version v0.M.SS.mm (milestone 0-9; small and minor two digits each), tracked in HANDOFF.md. BepInEx keeps only the first
         /// three parts (BepInPlugin.TryParseLongVersion), so the full string is logged on load.</summary>
-        internal const string Version = "0.1.25.29";
+        internal const string Version = "0.1.26.29";
         internal static ManualLogSource L;
         internal static string ConfigPath;
         static Canvas.WillRenderCanvases afterLayout; // kept referenced so it isn't collected
@@ -482,10 +482,21 @@ namespace FF5MenuSprites
                         KupoTextureCache.Enabled = root.TryGetProperty("kupoTextureCache", out var ktc) && ktc.ValueKind == JsonValueKind.True;
                         FieldSprites.Enabled = root.TryGetProperty("fieldSprites", out var fsp) && fsp.ValueKind == JsonValueKind.True;
                         FieldSprites.Debug = root.TryGetProperty("fieldSpritesDebug", out var fsd) && fsd.ValueKind == JsonValueKind.True;
-                        var sdl = new Dictionary<string, float>();
+                        // per walk: a number = middle (passing) frame only, or [first, middle, last] (stride A, passing, stride B)
+                        var sdl = new Dictionary<string, float[]>();
                         if (root.TryGetProperty("fieldStrideDelay", out var fsdl) && fsdl.ValueKind == JsonValueKind.Object)
                             foreach (var kv in fsdl.EnumerateObject())
-                                if (!kv.Name.StartsWith("_") && kv.Value.ValueKind == JsonValueKind.Number) sdl[kv.Name] = kv.Value.GetSingle();
+                            {
+                                if (kv.Name.StartsWith("_")) continue;
+                                if (kv.Value.ValueKind == JsonValueKind.Number) sdl[kv.Name] = new[] { 0f, kv.Value.GetSingle(), 0f };
+                                else if (kv.Value.ValueKind == JsonValueKind.Array)
+                                {
+                                    var d = new float[3]; int i = 0;
+                                    foreach (var e in kv.Value.EnumerateArray()) { if (i < 3 && e.ValueKind == JsonValueKind.Number) d[i] = e.GetSingle(); i++; }
+                                    if (i != 3) Plugin.L.LogWarning($"[Field] fieldStrideDelay \"{kv.Name}\": give 3 numbers [first, middle, last]; read {Math.Min(i, 3)}, missing ones = 0");
+                                    sdl[kv.Name] = d;
+                                }
+                            }
                         FieldSprites.StrideDelay = sdl;
                         KupoTextureCache.SkipUnreadable = root.TryGetProperty("kupoSkipUnreadable", out var ksu) && ksu.ValueKind == JsonValueKind.True;
                         KupoTextureCache.FastUnreadable = root.TryGetProperty("kupoFastUnreadable", out var kfu) && kfu.ValueKind == JsonValueKind.True;
