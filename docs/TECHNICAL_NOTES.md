@@ -62,6 +62,15 @@ Also: shader pass index = the pass's order in the `.shader` file, not its label.
 - Walks are 2 frames (`_01` then `_00`), 0.10 s each in every direction; `_00` is also the frame shown at rest. Right-facing walks are the left frames flipped. [verified, `anim_info.json` + log]
 - `anim_info.json` frames carry `offsetx`/`offsety` in game pixels; the only walk offset is `WalkL_01` `offsety` 1.0 (all five party members). The game applies them in `SpriteAnimLastFieldEntity.ReflectFrameData(Int32)`; the plugin reads them there and cancels them for replaced frames. [verified]
 - The game cannot make one walk frame longer without shortening the next, so for walks listed in `fieldStrideDelay` the plugin runs its own frame clock and uses the game's frame changes only as "still walking" and for the direction. [verified in-game]
+- Draw order on field maps: character body queue 2455, head 2457 (its shader paints the ceiling layer's picture over the head), shadow 2452; map tiles opaque 2450 (write depth), transparent 2456 (no depth write); effect quads (fire) 2458 and write depth. Layer depths: ceiling 50, upper 150, ground 250, bottom 350, plus 2 units per map row; a character sits 1-1.5 units nearer than its own row's ground. [verified, F8 + shader state]
+- Map tile meshes are a fixed grid of slots that follows the camera; the game gives slots other tile pictures as the view scrolls (empty slots use uv 0,0), so a slot is not a map cell. Changes to a tile must follow its picture, not its slot. [verified]
+- `tilemap.json` (Tiled) numbers a sheet's rows from the bottom. [verified]
+- Fire over taller heads: the game sets the effect's depth back every frame, so the plugin moves it behind the characters right before drawing (`Canvas.willRenderCanvases`), only while a character stands in front of it. [verified in-game]
+- Ceiling signs: Karnak has two sign boards in the ceiling layer. `fieldCeilingSigns` blanks their slots (uv set to the transparent corner texel the game uses for empty slots) and draws them from its own mesh at ground depth - 2.25, on layer 23 (drawn by the tile camera, not by the ceiling-picture camera). [verified in-game]
+
+## Save list
+
+- Each save slot stores a full-screen screenshot as base64 PNG text; `Last.UI.KeyInput.SaveContentController.SetScreenShot(String)` decodes it on the main thread (~60 ms each at 2560x1440). `fastSaveList` holds that call back, decodes on a worker thread, then replays the call and hands the ready pixels to its `LoadImage`. [verified]
 
 ## UI
 

@@ -11,10 +11,10 @@ It does not contain any art. It is the system that makes HD art look right in th
 | Area | Features |
 |---|---|
 | **Battle** | Full-resolution rendering (no more blocky HD sprites), HD character and enemy sizing, size factor for replaced sprites drawn at the game's pixel density (`customScale`), full-height backgrounds, party placement per slot, depth scaling, **3D ground shadows on the GPU** (light direction, height, blur, depth maps). *Unverified (not yet tested in-game):* Mini status shown with the normal sprites at a smaller size (`miniScale`) |
-| **Maps** | HD map tile sheets of any size (towns, dungeons, world map), swapped in on every map view without breaking the game's tile layout; per-map files where a sheet name has different art in different maps. Tile tools: one catalogue of every tile, replace a tile once and rebuild every sheet that uses it. HD field (map) character frames (`fieldSprites`), with per-frame walk timing (`fieldStrideDelay`) |
+| **Maps** | HD map tile sheets of any size (towns, dungeons, world map), swapped in on every map view without breaking the game's tile layout; per-map files where a sheet name has different art in different maps. Tile tools: one catalogue of every tile, replace a tile once and rebuild every sheet that uses it. HD field (map) character frames (`fieldSprites`) with one size setting (`fieldScale`), effects and mis-layered signs drawn correctly around taller characters, with per-frame walk timing (`fieldStrideDelay`) |
 | **Battle backgrounds** | HD backgrounds of any size, HD frames for animated parts (torches, water) with automatic placement |
 | **Menus** | Size and place character sprites per screen; move, resize, recolour, re-font, hide or swap **any** text or image; shared styles; cursor/greyed-out looks; list spacing |
-| **Other** | Custom loading animation, title-menu highlight, party name swap for old saves, shorter freezes after battles (optional) |
+| **Other** | Faster Load Game list (`fastSaveList`), custom loading animation, title-menu highlight, party name swap for old saves, shorter freezes after battles (optional) |
 | **For modders** | F8 screen dump (every object, path, font, size), add-on rule files, JSON schema with autocomplete, typo warnings in the log |
 
 Everything in `MenuLayout.json` is applied **live**: save the file and the game updates within a second.
@@ -25,7 +25,7 @@ Everything in `MenuLayout.json` is applied **live**: save the file and the game 
 |---|---|---|
 | FINAL FANTASY V Pixel Remaster (Steam) | Unity 2019.4.26f1 build | Windows, Direct3D 11 |
 | [BepInEx 6](https://github.com/BepInEx/BepInEx) IL2CPP build | 6.0.0-be.697 | Run the game once after installing it, so BepInEx builds its `interop` folder |
-| [KupoUI.PR](https://www.nexusmods.com/finalfantasy5pixelremaster/mods/27) by faospark (Nexus page "Darker UI") | FF5 build | Loads the HD image files. Without it the plugin still runs, but HD art is not swapped in |
+| [KupoUI.PR](https://www.nexusmods.com/finalfantasy5pixelremaster/mods/27) by faospark (Nexus page "Darker UI") | FF5 build | Loads the HD battle, enemy and menu images. Without it the plugin still runs, but that art is not swapped in (HD map tiles and field characters are loaded by the plugin itself) |
 
 Not required, but tested and compatible: Magicite, Memoria.FF5, Syldra, FFPR_Fix.
 

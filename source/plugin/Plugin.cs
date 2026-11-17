@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
@@ -25,7 +25,7 @@ namespace FF5MenuSprites
     {
         /// <summary>Project version v0.M.SS.mm (milestone 0-9; small and minor two digits each), tracked in HANDOFF.md. BepInEx keeps only the first
         /// three parts (BepInPlugin.TryParseLongVersion), so the full string is logged on load.</summary>
-        internal const string Version = "0.1.26.30";
+        internal const string Version = "0.1.29.33";
         internal static ManualLogSource L;
         internal static string ConfigPath;
         static Canvas.WillRenderCanvases afterLayout; // kept referenced so it isn't collected
@@ -85,6 +85,7 @@ namespace FF5MenuSprites
             Cleanup.Install(harmony);
             ScrollSpacing.Install(harmony);
             FieldSprites.Install(harmony);
+            SaveShots.Install(harmony);
             try { KupoTextureCache.Install(harmony); }
             catch (Exception e) { Log.LogWarning("[KupoCache] could not start: " + e.Message); }
             try { GameProfiler.ReadSwitch(ConfigPath); GameProfiler.Install(harmony); }
@@ -131,6 +132,10 @@ namespace FF5MenuSprites
                     {
                         try { Elements.Apply(); }
                         catch (Exception e) { L.LogWarning("[Elements] after layout: " + e.Message); }
+                        // field effects under characters: the game re-sets the effect's depth during the frame, so it is
+                        // put back here, after all game updates and right before drawing (attempt 3, 2026-11-16)
+                        try { FieldSprites.PreRender(); }
+                        catch (Exception e) { L.LogWarning("[Field] pre-render: " + e.Message); }
                     }));
                 else Canvas.remove_willRenderCanvases(afterLayout);
                 Canvas.add_willRenderCanvases(afterLayout);
@@ -482,6 +487,24 @@ namespace FF5MenuSprites
                         KupoTextureCache.Enabled = root.TryGetProperty("kupoTextureCache", out var ktc) && ktc.ValueKind == JsonValueKind.True;
                         FieldSprites.Enabled = root.TryGetProperty("fieldSprites", out var fsp) && fsp.ValueKind == JsonValueKind.True;
                         FieldSprites.Debug = root.TryGetProperty("fieldSpritesDebug", out var fsd) && fsd.ValueKind == JsonValueKind.True;
+                        FieldSprites.EffectsUnder = !(root.TryGetProperty("fieldEffectsUnderCharacters", out var feu) && feu.ValueKind == JsonValueKind.False);
+                        // fieldCeilingSigns: { "<sheet>": [[x, y], ...] } top-left pixel of each 16 px tile, y from the top
+                        var ceilSigns = new Dictionary<string, HashSet<(int, int)>>(StringComparer.OrdinalIgnoreCase);
+                        if (root.TryGetProperty("fieldCeilingSigns", out var fcs) && fcs.ValueKind == JsonValueKind.Object)
+                            foreach (var sh in fcs.EnumerateObject())
+                            {
+                                if (sh.Name.StartsWith("_") || sh.Value.ValueKind != JsonValueKind.Array) continue;
+                                var set = new HashSet<(int, int)>();
+                                foreach (var xy in sh.Value.EnumerateArray())
+                                    if (xy.ValueKind == JsonValueKind.Array && xy.GetArrayLength() == 2 && xy[0].ValueKind == JsonValueKind.Number && xy[1].ValueKind == JsonValueKind.Number)
+                                        set.Add((xy[0].GetInt32(), xy[1].GetInt32()));
+                                    else Plugin.L.LogWarning($"[MenuLayout] fieldCeilingSigns '{sh.Name}': entry is not [x, y]; skipped");
+                                if (set.Count > 0) ceilSigns[sh.Name] = set;
+                            }
+                        CeilSigns.List = ceilSigns;
+                        SaveShots.Enabled = !(root.TryGetProperty("fastSaveList", out var fsl) && fsl.ValueKind == JsonValueKind.False);
+                        FieldSprites.Scale = root.TryGetProperty("fieldScale", out var fsc) && fsc.ValueKind == JsonValueKind.Number && fsc.GetSingle() > 0f
+                            ? Mathf.Clamp(fsc.GetSingle(), 0.1f, 10f) : 1f;
                         // per walk: a number = middle (passing) frame only, or [first, middle, last] (stride A, passing, stride B)
                         var sdl = new Dictionary<string, float[]>();
                         if (root.TryGetProperty("fieldStrideDelay", out var fsdl) && fsdl.ValueKind == JsonValueKind.Object)
@@ -5301,7 +5324,7 @@ namespace FF5MenuSprites
                 try
                 {
                     var tt = cam.targetTexture;
-                    rows.Add($"{Clean(PathOf(cam.transform))}\tCamera\t\tcamera enabled={cam.enabled} depth={cam.depth} position={cam.transform.position} orthographic={cam.orthographic} size={cam.orthographicSize:0.##} target={(tt == null ? "screen" : $"'{tt.name}' {tt.width}x{tt.height}")}");
+                    rows.Add($"{Clean(PathOf(cam.transform))}\tCamera\t\tcamera enabled={cam.enabled} depth={cam.depth} position={cam.transform.position} orthographic={cam.orthographic} size={cam.orthographicSize:0.##} target={(tt == null ? "screen" : $"'{tt.name}' #{tt.GetInstanceID()} {tt.width}x{tt.height}")} mask={cam.cullingMask}");
                 }
                 catch (Exception e) { rows.Add("camera\t\t\terror: " + e.Message); }
             }
@@ -5364,7 +5387,16 @@ namespace FF5MenuSprites
                 var img = c.TryCast<Image>();
                 if (img != null) { details.Add($"sprite={img.sprite?.name} color={Hex(img.color)} type={img.type}"); continue; }
                 var sr = c.TryCast<SpriteRenderer>();
-                if (sr != null) { details.Add($"sprite={sr.sprite?.name} color={Hex(sr.color)} world={sr.transform.position} order={sr.sortingOrder} scale={sr.transform.lossyScale}{Elements.TexInfo(sr.sprite)}"); continue; }
+                if (sr != null)
+                {
+                    // material, shader and render queue too (fireplace fire drawn over taller field sprites, 2026-11-16:
+                    // draw order between the fire quad and characters is not explained by their depth)
+                    var sm = sr.sharedMaterial;
+                    string mat = sm == null ? " material=null" : $" material='{sm.name}' shader='{(sm.shader != null ? sm.shader.name : "?")}' queue={sm.renderQueue}" +
+                        (sm.HasProperty("_ZTestCmpFunc") ? $" ztest={sm.GetFloat("_ZTestCmpFunc")}" : "") + (sm.HasProperty("_ZWrite") ? $" zwrite={sm.GetFloat("_ZWrite")}" : "") + FieldSprites.UpTexInfo(sm);
+                    details.Add($"on={(sr.enabled && sr.gameObject.activeInHierarchy ? "yes" : "no")} sprite={sr.sprite?.name} color={Hex(sr.color)} world={sr.transform.position} order={sr.sortingOrder} layer={sr.sortingLayerName} scale={sr.transform.lossyScale}{mat}{Elements.TexInfo(sr.sprite)}");
+                    continue;
+                }
                 var lg = c.TryCast<HorizontalOrVerticalLayoutGroup>();
                 if (lg != null) { details.Add($"spacing={lg.spacing:0.#} align={lg.childAlignment} controlW={lg.childControlWidth} controlH={lg.childControlHeight}"); continue; }
                 var le = c.TryCast<LayoutElement>();
@@ -5553,6 +5585,8 @@ namespace FF5MenuSprites
                 catch (Exception e) { Plugin.L.LogWarning("[Dump] " + e.Message); }
                 try { FieldSprites.Tick(); }
                 catch (Exception e) { Plugin.L.LogWarning("[Field] " + e.Message); }
+                try { SaveShots.Tick(); }
+                catch (Exception e) { Plugin.L.LogWarning("[SaveList] " + e.Message); }
                 try { FieldTiles.Tick(); }
                 catch (Exception e) { Plugin.L.LogWarning("[MapTiles] " + e.Message); }
                 // Objects the game switched on since last frame: check only those (no scene sweeps).

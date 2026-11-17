@@ -14,7 +14,7 @@ namespace FF5MenuSprites
     static class Keys
     {
         internal static readonly string[] Top = {
-            "$schema", "log", "dumpKey", "perf", "profileGame", "characterNames", "cleanup", "kupoTextureCache", "fieldSprites", "fieldSpritesDebug", "fieldStrideDelay",
+            "$schema", "log", "dumpKey", "perf", "profileGame", "characterNames", "cleanup", "kupoTextureCache", "fieldSprites", "fieldSpritesDebug", "fieldStrideDelay", "fieldEffectsUnderCharacters", "fieldScale", "fastSaveList", "fieldCeilingSigns",
             "kupoSkipUnreadable", "kupoFastUnreadable", "textureLimit", "screens", "styles", "elements", "textStyles", "renderHeights",
             "battle", "loadingIcon", "titleHighlight" };
         internal static readonly string[] AddOnTop = { "$schema", "screens", "elements", "textStyles", "styles" };

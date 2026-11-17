@@ -275,9 +275,140 @@ namespace FF5MenuSprites
             }
         }
 
+        /// <summary>
+        /// MenuLayout "fieldEffectsUnderCharacters" (default true, needs fieldSprites). Rule (user 2026-11-16): whatever is
+        /// lower on screen is in front, as the game does for walls, pots and barrels; the game encodes it as depth from the
+        /// feet row (fire quad 247 = the row in front of the hearth; player there 246.5, NPCs a row behind 249) [verified,
+        /// F8 11:39]. Problem: field effect quads (Map_NNNNN/FieldEffectBoardEntity(Clone)/VisualParent, e.g. a fireplace
+        /// fire; queue 2458, after character bodies 2455 / heads 2457) cover the heads of 1.5x sprites standing IN FRONT of
+        /// them [user's screenshot]; drawing the effect first (queue 2454, attempt 1) did not help, so it also writes depth
+        /// and the character shader puts the top of a sprite further back [inferred]. Fix: while a custom character that
+        /// stands in front (its depth below the effect's) overlaps an effect on screen, that effect draws before the
+        /// characters, moved back to depth 345 (orthographic: same place and size on screen) with depth test Always so the
+        /// floor and walls do not hide it. Otherwise the effect keeps the game's settings (so it still covers characters
+        /// behind it). Effects the game already draws before the characters are left alone.
+        /// </summary>
+        internal static bool EffectsUnder = true;
+        const int EffectQueue = 2454, CharaBodyQueue = 2455;   // [verified, F8 dump]
+        const float EffectZ = 345f;     // behind the ground layer (248), in front of the bottom layer (348) [verified, dump]
+        class Eff { public MeshRenderer R; public Material M; public Transform T; public int Queue; public float ZTest = -1f, Z, GameZ; public bool Under, ZLogged; }
+        static readonly Dictionary<IntPtr, Eff> effects = new Dictionary<IntPtr, Eff>();
+        static float effectNext;
+        static bool effectLogged, effectBroken;
+
+        static void SetUnder(Eff o, bool under)
+        {
+            if (o.Under == under) return;
+            o.Under = under;
+            o.M.renderQueue = under ? EffectQueue : o.Queue;
+            if (o.ZTest >= 0f) o.M.SetFloat("_ZTestCmpFunc", under ? 8f : o.ZTest);    // 8 = CompareFunction.Always
+            if (!under) { var p = o.T.position; o.T.position = new Vector3(p.x, p.y, o.Z); }
+        }
+
+        /// <summary>
+        /// Right before drawing (Canvas.willRenderCanvases, after all game updates): an effect that is under a character
+        /// goes to depth EffectZ again. Attempt 2 moved it once and the game set it back to 247 [verified, F8 12:07:05:
+        /// queue 2454 and depth test 8 held, position z 247]; the effect shader writes depth in its first pass whatever the
+        /// material says [verified, shader state via UnityPy], so at 247 it still blocked the heads.
+        /// </summary>
+        internal static void PreRender()
+        {
+            long tc = Perf.Start();
+            CeilSigns.PreRender();
+            Perf.Stop("ceilSigns", tc);
+            if (effectBroken || effects.Count == 0) return;
+            foreach (var o in effects.Values)
+            {
+                if (!o.Under || o.T == null || o.T.WasCollected) continue;
+                var p = o.T.position;
+                if (p.z != EffectZ) o.GameZ = p.z;           // the game's latest value, for the in-front check
+                if (p.z != EffectZ)
+                {
+                    if (!o.ZLogged) { o.ZLogged = true; Plugin.L.LogWarning($"[Field] effect depth was set back to {p.z:0.#} by the game; put to {EffectZ:0} before drawing (info, not an error)"); }
+                    o.T.position = new Vector3(p.x, p.y, EffectZ);
+                }
+            }
+        }
+
+        static void EffectTick()
+        {
+            if (effectBroken) return;
+            try
+            {
+                bool on = Enabled && EffectsUnder;
+                if (on && Time.unscaledTime >= effectNext)      // find the current map's effects twice a second
+                {
+                    effectNext = Time.unscaledTime + 0.5f;
+                    var view = GameObject.Find("RootObject/RootFiled/MapRenderer");
+                    var root = view != null && view.transform.parent != null ? view.transform.parent.parent : null;
+                    for (int i = 0; root != null && i < root.childCount; i++)
+                    {
+                        var map = root.GetChild(i);
+                        if (!map.name.StartsWith("Map_", StringComparison.Ordinal)) continue;
+                        for (int j = 0; j < map.childCount; j++)
+                        {
+                            var e = map.GetChild(j);
+                            if (!e.name.StartsWith("FieldEffectBoardEntity", StringComparison.Ordinal)) continue;
+                            var vp = e.Find("VisualParent");
+                            var r = vp != null ? vp.GetComponent<MeshRenderer>() : null;
+                            var m = r != null ? r.sharedMaterial : null;
+                            if (m == null || effects.ContainsKey(m.Pointer) || m.renderQueue <= CharaBodyQueue) continue;
+                            effects[m.Pointer] = new Eff { R = r, M = m, T = vp, Queue = m.renderQueue, Z = vp.position.z, GameZ = vp.position.z,
+                                                           ZTest = m.HasProperty("_ZTestCmpFunc") ? m.GetFloat("_ZTestCmpFunc") : -1f };
+                        }
+                    }
+                }
+                List<IntPtr> gone = null;
+                foreach (var kv in effects)
+                {
+                    var o = kv.Value;
+                    if (o.M == null || o.M.WasCollected || o.T == null || o.T.WasCollected || o.R == null || o.R.WasCollected)
+                    { (gone ??= new List<IntPtr>()).Add(kv.Key); continue; }
+                    if (!o.Under) o.GameZ = o.T.position.z;         // not overwritten by us: the game's own value
+                    bool under = false;
+                    if (on && o.R.enabled)
+                    {
+                        var eb = o.R.bounds;
+                        foreach (var st in states.Values)
+                        {
+                            if (st.R == null || st.R.WasCollected || !st.R.enabled || st.R.transform.position.z > o.GameZ) continue;   // behind it (the game's current effect depth)
+                            var cb = st.R.bounds;
+                            if (cb.min.x < eb.max.x && cb.max.x > eb.min.x && cb.min.y < eb.max.y && cb.max.y > eb.min.y) { under = true; break; }
+                        }
+                    }
+                    if (under && !effectLogged)
+                    {
+                        effectLogged = true;
+                        Plugin.L.LogWarning($"[Field] effect '{o.T.parent?.name}' under a character in front of it: queue {o.Queue} -> {EffectQueue}, " +
+                                            $"depth {o.Z:0.#} -> {EffectZ:0}, depth test {o.ZTest} -> always while it overlaps (info, not an error)");
+                    }
+                    SetUnder(o, under);
+                }
+                if (gone != null) foreach (var k in gone) effects.Remove(k);
+            }
+            catch (Exception ex)
+            {
+                effectBroken = true;
+                Plugin.L.LogWarning("[Field] field effect order not changed (game's order stays): " + ex.Message);
+            }
+        }
+
+        /// <summary>F8 dump (2026-11-16): the character shader takes the upper/ceiling layer pictures (_OneUpTex/_TwoUpTex,
+        /// switches _ApplyOneUpTex/_ApplyTwoUpTex [verified, UnityPy shader props]); which is which is read from this line.</summary>
+        internal static string UpTexInfo(Material sm)
+        {
+            if (sm == null || !sm.HasProperty("_OneUpTex")) return "";
+            string T(string n) { var x = sm.GetTexture(n); return x == null ? "null" : $"'{x.name}' #{x.GetInstanceID()} {x.width}x{x.height}"; }
+            string F(string n) => sm.HasProperty(n) ? sm.GetFloat(n).ToString("0.##") : "-";
+            return $" oneUp={T("_OneUpTex")} applyOneUp={F("_ApplyOneUpTex")} twoUp={T("_TwoUpTex")} applyTwoUp={F("_ApplyTwoUpTex")} isUpper={F("_IsUpper")} kw=[{string.Join(",", sm.shaderKeywords)}]";
+        }
+
         /// <summary>Every frame (LayoutWatcher.Update): idle file while a character stands still, walk file while it moves.</summary>
         internal static void Tick()
         {
+            EffectTick();
+            if (Enabled && !broken && Scale != appliedScale)
+                try { Rescale(); } catch (Exception e) { appliedScale = Scale; Plugin.L.LogWarning("[Field] fieldScale change failed (old size stays until the next frame change): " + e.Message); }
             if (!Enabled || broken || states.Count == 0) return;
             float now = Time.unscaledTime;
             List<IntPtr> dead = null;
@@ -367,10 +498,55 @@ namespace FF5MenuSprites
             return sp;
         }
 
+        /// <summary>
+        /// MenuLayout "fieldScale" (default 1): size factor for every custom field frame, on top of its size file
+        /// (shown pixels per unit = the file's pixelsPerUnit / fieldScale), around the feet. Live: a change rebuilds the
+        /// sprites from the loaded textures and puts each character's current frame back. User 2026-11-16: the size
+        /// should be a MenuLayout value, not baked into ~1,000 size files (they went back to the game-matched 3).
+        /// </summary>
+        internal static float Scale = 1f;
+        static float appliedScale = 1f;
+        // loaded file data per "folder/frame": texture, size file pixelsPerUnit and shiftY (textures load once)
+        static readonly Dictionary<string, (Texture2D Tex, float Ppu, float ShiftY)> loaded = new Dictionary<string, (Texture2D, float, float)>();
+
+        /// <summary>fieldScale changed: new sprites from the loaded textures; each character shows its frame again.</summary>
+        static void Rescale()
+        {
+            appliedScale = Scale;
+            made.Clear();
+            shifted.Clear();
+            foreach (var st in states.Values)
+            {
+                if (st.R == null || st.R.WasCollected || st.Folder == null) continue;
+                var want = st.Idle ? Get(st.Folder, st.Frame + ".idle") : st.Clock ? ClockSprite(st) : st.UseAlt ? Get(st.Folder, st.Frame + ".2") ?? Get(st.Folder, st.Frame) : Get(st.Folder, st.Frame);
+                st.Shown = null;
+                Show(st, want);
+            }
+            Plugin.L.LogWarning($"[Field] fieldScale {Scale:0.###}: field frames rebuilt (info, not an error)");
+        }
+
         static Sprite Make(string folder, string frame)
         {
+            string key = folder + "/" + frame;
+            if (!loaded.TryGetValue(key, out var d) || d.Tex == null || d.Tex.WasCollected)
+            {
+                d = Load(folder, frame);
+                if (d.Tex == null) return null;
+                loaded[key] = d;
+            }
+            float ppu = d.Ppu / Mathf.Max(0.05f, Scale);
+            // shiftY moves the picture by moving the anchor (the feet are the image's bottom row, so the picture itself
+            // cannot move down inside the image): -1 = one image pixel down; in image pixels, so the scale keeps it
+            var sp = Sprite.Create(d.Tex, new Rect(0, 0, d.Tex.width, d.Tex.height), new Vector2(0.5f, -d.ShiftY / d.Tex.height), ppu, 0, SpriteMeshType.FullRect);
+            sp.name = frame + "_Custom";
+            sp.hideFlags = HideFlags.DontUnloadUnusedAsset;
+            return sp;
+        }
+
+        static (Texture2D Tex, float Ppu, float ShiftY) Load(string folder, string frame)
+        {
             string png = Path.Combine(Root, folder, frame + ".png");
-            if (!File.Exists(png)) return null;
+            if (!File.Exists(png)) return (null, 0f, 0f);
             float ppu = 1f, shiftY = 0f;    // shiftY: image pixels the picture moves up (negative = down)
             string js = Path.Combine(Root, folder, frame + ".json");
             if (File.Exists(js))
@@ -389,20 +565,15 @@ namespace FF5MenuSprites
             if (!ImageConversion.LoadImage(tex, File.ReadAllBytes(png)))
             {
                 Plugin.L.LogWarning("[Field] not a readable PNG, the game's frame stays: " + png);
-                return null;
+                return (null, 0f, 0f);
             }
             tex.filterMode = FilterMode.Point;
             tex.wrapMode = TextureWrapMode.Clamp;
             tex.name = "Field_" + folder + "_" + frame;
             tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
-            // shiftY moves the picture by moving the anchor (the feet are the image's bottom row, so the picture itself
-            // cannot move down inside the image): -1 = one image pixel down
-            var sp = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, -shiftY / tex.height), ppu, 0, SpriteMeshType.FullRect);
-            sp.name = frame + "_Custom";
-            sp.hideFlags = HideFlags.DontUnloadUnusedAsset;
             if (folderLogged.Add(folder))
-                Plugin.L.LogWarning($"[Field] {folder}: frames from {Path.Combine(Root, folder)} ({tex.width}x{tex.height}, {ppu} px per unit) (info, not an error)");
-            return sp;
+                Plugin.L.LogWarning($"[Field] {folder}: frames from {Path.Combine(Root, folder)} ({tex.width}x{tex.height}, {ppu} px per unit, fieldScale {Scale:0.###}) (info, not an error)");
+            return (tex, ppu, shiftY);
         }
     }
 }
