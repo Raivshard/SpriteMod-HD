@@ -153,7 +153,7 @@ namespace FF5MenuSprites
                 if (!Enabled || __0 == null || string.IsNullOrEmpty(__1) || !Supported()) { nOff++; return true; }
                 // Battle character poses go to KupoUI untouched: with the cache, a party member with a full replaced
                 // pose set fell back to the game's own sprite after taking damage; with the cache off it did not
-                // [verified once, user 2026-11-14; the cause inside the cache is not known].
+                // [verified once; the cause inside the cache is not known].
                 if (__2 != null && __2.IndexOf("/Chara/Battle/", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     nBattleSkip++;

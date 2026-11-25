@@ -30,7 +30,7 @@ Builds `shaders\out\ff5shadow.bundle` in batch mode (log: `shaders\build_bundle.
 
 ## Tools
 
-Set the game folder once per terminal if it isn't the Steam default: `set FF5_GAME=D:\Games\FINAL FANTASY V PR`.
+Game folders: `tools\games.json` (`steam` = the folder holding the games; one entry per game with its install folder and exe name). Python tools take `--game FF6` (default FF5), PowerShell tools `-Game FF6`. `set FF5_GAME=D:\Games\FINAL FANTASY V PR` still overrides FF5's folder.
 
 | Tool | Use |
 |---|---|

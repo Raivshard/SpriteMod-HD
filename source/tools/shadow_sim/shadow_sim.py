@@ -23,7 +23,7 @@ Sole fits (--fit):
           D must lie within 0.1-2 x figure width, else fallback.
   fixed   D = depthRange x texture width, c = min over the bottom quarter (no sole solving).
 
-Usage (from anywhere; reads the game folder, writes only to data/shadow_sim/<run>):
+Usage (from anywhere; reads the game folder, writes only to build/reviews and reports/shadow_sim/<run>):
   python shadow_sim.py                      all party sprites with a depth map, robust fit, azimuth 0,90,180,270
   python shadow_sim.py --fit legacy         what the game does now
   python shadow_sim.py --az 0,300 --elevation 45 --tilt 0.5 --thickness 0.3 path/to/Default_00.png
@@ -39,13 +39,15 @@ import sys
 import time
 
 from PIL import Image, ImageDraw, ImageFilter
+sys.path[0:0] = [str(__import__('pathlib').Path(__file__).resolve().parents[i]) for i in (1, 2)]  # tools folder: games.py (release / project)
+from games import GAME  # --game FF6 picks the game (tools\games.json)
 
-# Game folder: environment variable FF5_GAME, else the default below. Output: SHADOW_SIM_OUT, else <project>/data/shadow_sim.
-GAME = os.environ.get('FF5_GAME', r'C:\Program Files (x86)\Steam\steamapps\common\FINAL FANTASY V PR')
-MOD = os.path.join(GAME, r'Modules\00-Mods\SpriteMod HD\FF5')
+# Game: --game FF6 (tools\games.json). Output: SHADOW_SIM_OUT, else <project>/build/reviews and reports/shadow_sim.
+MOD = str(GAME.mod)
+GAME = str(GAME.root)
 PARTY_GLOB = os.path.join(MOD, r'GameAssets\Serial\Res\Chara\Battle\*\*.depth.png')
 PROJECT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-OUT_ROOT = os.environ.get('SHADOW_SIM_OUT', os.path.join(PROJECT, 'data', 'shadow_sim'))
+OUT_ROOT = os.environ.get('SHADOW_SIM_OUT', os.path.join(PROJECT, 'build', 'reviews and reports', 'shadow_sim'))
 
 GROUND = (128, 140, 104)
 GRID = (146, 158, 122)
@@ -199,7 +201,7 @@ def fit_lifted(body, cfg, lift_px, centred):
     D = cfg['depthRange'] * W
     line = body.by0 - lift_px
     if centred:
-        # The gap is empty space under the sprite (user, 2026-11-14): like a standing body, which is slid down until its
+        # The gap is empty space under the sprite: like a standing body, which is slid down until its
         # lowest 3D point touches the ground, a flyer is placed so its lowest 3D point is exactly the gap above it. No
         # point is lower than the gap, so no shadow starts closer than gap / tan(elevation).
         low = min(y - (body.s[y * W + x] * D + body.h[y * W + x]) * t for y in range(body.H) for x in range(W) if body.mask[y * W + x])

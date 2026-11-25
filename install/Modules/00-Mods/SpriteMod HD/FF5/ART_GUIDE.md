@@ -90,7 +90,7 @@ Check the result in battle with `battle.groundShadow.debug: true` (bodies show g
 
 Keep each tile inside its own 16 px cell (scaled). Upscaling a whole sheet at once can blend neighbouring tiles, which sit next to unrelated tiles on the sheet.
 
-**Tile by tile:** `source\tools\map_tiles\map_tile_catalog.py` lists every tile image of the game once (about 12,900 are used on maps) with where it is used. Replace a tile once and `map_tiles_pack.py build` puts it into every sheet that has it; `import` cuts a whole HD sheet into tiles; overrides cover one tile of one sheet. Tool: `source\tools\map_tiles_hd.py` (whole-pixel enlargement; `--grid` draws test lines on tile edges).
+**Tile by tile:** `source\tools\map_tiles\map_tile_catalog.py` lists every tile image of the game once (about 21,000 are used on maps) with where it is used. Replace a tile once and `map_tiles_pack.py build` puts it into every sheet that has it; `import` cuts a whole HD sheet into tiles; overrides cover one tile of one sheet. Tool: `source\tools\map_tiles_hd.py` (whole-pixel enlargement; `--grid` draws test lines on tile edges).
 
 ## Loading animation
 

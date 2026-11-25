@@ -229,7 +229,7 @@ namespace FF5MenuSprites
                 mat.SetVector(idGN, new Vector4(c.N, c.Lift, id, 0f));
                 // depth map beside the sprite's file (2026-11-14): front-to-back range D = depthRange x body width
                 // The outline pass stores the map's depth unscaled (0.5 - v); the fit pass scales it per body so both soles
-                // touch the ground (user, 2026-11-14), falling back to depthRange x width.
+                // touch the ground, falling back to depthRange x width.
                 var map = DepthMaps.For(c.Tex);
                 float D = Mathf.Max(0f, BattleCharScale.GsDepthRange) * bb.size.x;
                 if (map != null) withMap++;

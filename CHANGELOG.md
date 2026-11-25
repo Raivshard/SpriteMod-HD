@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.1.35.35 (2026-11-24)
+
+### New
+
+- **Other Pixel Remaster games:** should run in all PR games. Originally built on FF5 PR, so some bugs may reflect that. The plugin reads its files from `Modules\00-Mods\SpriteMod HD\<game>\` (e.g. `FF6`). HD map tiles and map layouts are tested in-game in FF1, FF5 and FF6.
+- **Map tiles for modders** (experimental; `source\tools\map_tiles\README.md`): make your own map tiles for any PR game in Tiled. `new_project.py` sets up a project for the maps you name; Tiled commands check, import, build and install it. You can replace a tile everywhere, give a few cells their own tile, move, copy, erase, flip or rotate cells, restyle animation frames and doors, and place tile objects anywhere. The import warns when you replace an animated tile, which would not show. Keep backups of your work. If the documentation is unclear or a tool fails, please tell the author (GitHub Issues or the Nexus page).
+- **Edited map layouts:** `GameAssets\Serial\Res\Map\...\tilemap.json` beside MenuLayout.json replaces a map's tile cells. Walking, events and colours stay the game's.
+- **Map objects:** `map_objects\<Map>.json` draws tiles placed freely in Tiled, with their Tiled animation, blend mode and opacity, sorted with the characters.
+- **Map shadows** (`fieldMapShadows`, on by default): a field map can have a shadow mask `map_shadows\<Map>.png` beside MenuLayout.json (black, alpha = shadow, 32 px per map cell, top row = map row 0). It is drawn over the floor and under characters, aligned to the map's cells. No masks ship with the mod. You paint the mask yourself (map guide, section "Shadows, lava and fire").
+- **Lava** (tested in FF5 Karnak): `fieldLavaSpeed` and `fieldLavaWaterBlend` tune the game's lava surface; a lava layer (`map_shadows\<Map>.lava.json`) draws animated lava frames under it, with `fieldLavaOpacity`, `fieldLavaBlend` (Photoshop-style blend modes and Blend If ranges), `fieldLavaEdge` (a lighter top edge) and `fieldLavaAnimSpeed`.
+- **Flame frames** (`fieldFlames`, deprecated): `effects\<effect>\flame_*.png` replaces the fire of one map fire effect (torches, fireplaces), keeping the game's sparks and glow. Each effect needs its own files, set up case by case; it does not replace fire effects automatically. Use map objects with a Tiled animation and a blend mode instead. `flame.json` sets speed, offset, scale, hides the game's fire, or sets the glow's blend mode. `fieldEffectResolution` keeps the frames sharp.
+- **Tile animations:** `map_tiles\anim\anim.json` animates single tiles of an HD sheet.
+- `MenuLayout_README.md`: every setting is now documented, including the diagnostic ones, with a new "Map files" section.
+
+### Changed
+
+- README requirements: the BepInEx version is corrected to 6.0.0-pre.2 IL2CPP (Unity IL2CPP, Windows x64, linked). The UnityPlayer CRC check Bypass is listed as a prerequisite.
+- Shorter log: the per-map detail lines (map tiles, layouts, shadows, lava, flames) are written only when `LogLevels` includes `Info`.
+
+### Fixed
+
+- **`fieldCeilingSigns`**: the listed signs showed inside buildings without a ceiling layer (e.g. Karnak's pub and inn) and moved with the camera. The game switches the town's ceiling off there but keeps it; the signs now follow it.
+- **Map tile catalogue** (`map_tile_catalog.py`): map tile numbers were read top-down, but the game's map files count sheet rows from the bottom. Usage (cells placed, used or unused, layers, animation frames, collision) went to the wrong tiles. Rebuild your catalogue with `--force` (`labels.csv` is kept). Replacements and `map_tiles_pack.py build` were not affected.
+- **Map tile catalogue:** now finds every sheet name (FF1 `Map_NNNNN`, FF6 `mapNNN`, FF5 `map_chip_NNN`) and skips sheets that are not 512x512 px (4 FF1 sheets) with a message.
+
+### Known issues
+
+- An NPC can be drawn over a `fieldCeilingSigns` sign for a moment while walking past it (low priority).
+
 ## v0.1.29.33 (2026-11-16)
 
 ### New

@@ -19,7 +19,7 @@ python source\tools\shadow_sim\shadow_sim.py
 | `--lift` | none | flyer: gap from the figure's lowest pixel down to the ground (the default shadow's base), sprite px at full size |
 | `--flyer` | `centred` | `centred` = lowest 3D point exactly the gap above the ground (proposal); `game` = as the plugin does now |
 
-Reads the game folder only. Writes a new folder per run, never overwriting: `data\shadow_sim\<date>_<time>_<fit>[_label]\`.
+Reads the game folder only. Writes a new folder per run, never overwriting: `build\reviews and reports\shadow_sim\<date>_<time>_<fit>[_label]\`.
 
 ## Output (per sprite)
 
@@ -50,4 +50,4 @@ Same as the shaders in `source\shaders\UnityProject\Assets\Shaders`. Each body p
 
 The game marches from each ground pixel toward the light. The simulator splats every body point forward onto the ground instead: the same shadow, much faster in plain Python. Edge speckles are a sampling effect of the simulator, not part of the model.
 
-Flyers: `--lift` (see above). The game uses 2 x the gap to the default shadow's base (user, 2026-11-14), so the nearest shadow lands 2 x gap / tan(elevation) from the ground point. Zu: gap 13.6 units = 127 px, so `--lift 254`.
+Flyers: `--lift` (see above). The game uses 2 x the gap to the default shadow's base (measured in-game), so the nearest shadow lands 2 x gap / tan(elevation) from the ground point. Zu: gap 13.6 units = 127 px, so `--lift 254`.

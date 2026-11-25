@@ -114,8 +114,8 @@ Colour names KupoUI knows:
 
 | File | Change | Why |
 |---|---|---|
-| `Amano Style TitleScreen\ObjectConfig.json`, the `main_menu` text rule | `FontSize` 40 → **70** | Title commands 75% larger (user, 2026-10-31). SpriteMod HD's own size rule was removed so the two mods don't compete. |
-| same file, MAIN MENU TEXT | Added `"ResizeTextForBestFit": false` | These texts use shrink-to-fit, capped by fontconfig's Font01 `FontSizeMax` (38), so `FontSize` had no effect (user test). Off = `FontSize` is used as written. Untested. |
+| `Amano Style TitleScreen\ObjectConfig.json`, the `main_menu` text rule | `FontSize` 40 → **70** | Title commands 75% larger. SpriteMod HD's own size rule was removed so the two mods don't compete. |
+| same file, MAIN MENU TEXT | Added `"ResizeTextForBestFit": false` | These texts use shrink-to-fit, capped by fontconfig's Font01 `FontSizeMax` (38), so `FontSize` had no effect (tested in-game). Off = `FontSize` is used as written. Untested. |
 | same file, MAIN MENU TEXT | Found (F8 dump + KupoUI log, verified): the font swap sets these texts to Font01's `FontSize` from fontconfig.json, which overrides ObjectConfig `FontSize`. The user switched to `Scale` 1.25 and raised Font01 instead. | Per-text size can't win against the font swap; `Scale` is applied after it. |
 | same file, new MAIN MENU CURSOR entry | `cursor_parent` `Scale` 0.8 (= 1 / 1.25); also added a missing comma after `DisableShadow` in the text entry | The cursor sits inside the text object, so it grew with the text scale. |
 | same file, every entry | Added a `_comment` saying what the entry changes and where it is on screen; values unchanged | `TargetObjectName` alone (`last_text`, `sub_menu`) doesn't say what it is. Extras/Options list contents are from the game's command list *(inferred)*. |

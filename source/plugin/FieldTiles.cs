@@ -10,7 +10,7 @@ namespace FF5MenuSprites
     /// e.g. 'map_chip_147' 512x512 on all eight renderers RootObject/RootFiled/MapRenderer/MainViewMapRenderer/MainView/
     /// {Bottom,Ground,Upper,Ceil}Layer_{opaque,transparent} [verified, F8 dumps 2026-11-14/15]; the tile UVs come from
     /// MapTileGroupData.TexUVTable [verified, interop dump]. A larger sheet loaded by the game does not work [verified
-    /// externally, user 2026-11-15]. So the game keeps loading its own sheet (its UVs stay right) and the plugin then
+    /// externally]. So the game keeps loading its own sheet (its UVs stay right) and the plugin then
     /// sets the material's texture to map_tiles/&lt;sheet name&gt;.hd.png beside MenuLayout.json. UVs are 0..1, so any size
     /// with the same layout fits (2x = 1024 px, 32 px tiles) [inferred; the test checks it].
     /// Point filter (no bleeding from neighbouring tiles). Files are re-read when the folder changes; the game's own
@@ -36,7 +36,7 @@ namespace FF5MenuSprites
 
         static void Log(string s)
         {
-            if (logged.Count < 300 && logged.Add(s)) Plugin.L.LogWarning("[MapTiles] " + s + " (info, not an error)");
+            if (logged.Count < 300 && logged.Add(s)) Plugin.L.LogInfo("[MapTiles] " + s);   // details: BepInEx Info level
         }
 
         /// <summary>Re-read the folder when its files change: game sheets back on, HD textures dropped.</summary>
@@ -54,6 +54,7 @@ namespace FF5MenuSprites
             orig.Clear();
             foreach (var t in hd.Values) if (t != null && !t.WasCollected) UnityEngine.Object.Destroy(t);
             hd.Clear(); ours.Clear(); logged.Clear();
+            LoadAnims(dir);
             if (!first || n > 0) Plugin.L.LogInfo($"[MapTiles] {n} sheet file(s) in {dir}");
         }
 
@@ -151,12 +152,114 @@ namespace FF5MenuSprites
                 var view = GameObject.Find(ViewPath);
                 if (view == null)
                 {
-                    if (++ticksNoView == 1) Plugin.L.LogWarning("[MapTiles] map renderer not found (" + ViewPath + "); waiting (info, not an error)");
+                    if (++ticksNoView == 1) Plugin.L.LogInfo("[MapTiles] map renderer not found (" + ViewPath + "); waiting");
                     return;
                 }
-                if (ticksNoView > 0) { Plugin.L.LogWarning($"[MapTiles] map renderer found again after {ticksNoView} checks (info, not an error)"); ticksNoView = 0; }
+                if (ticksNoView > 0) { Plugin.L.LogInfo($"[MapTiles] map renderer found again after {ticksNoView} checks"); ticksNoView = 0; }
+                viewGo = view;
+                Swap(view);
+            }
+            catch (Exception e)
+            {
+                broken = true;
+                Plugin.L.LogWarning("[MapTiles] stopped (game sheets stay): " + e.Message);
+            }
+        }
+
+        static GameObject viewGo;
+
+        // ---- tile animations the map data does not have (lava) ----
+        // map_tiles/anim/anim.json: [{"sheet", "tid", "frames" (png: count frames of one tile side by side, stored
+        // orientation), "count", "ms"}] from tools/map_tiles/tile_anim.py. Every frame step the current frame is copied
+        // into the tile's place in the HD sheet on the GPU (Graphics.CopyTexture, region form [verified, interop dump]);
+        // every cell using that tile shows it, the water shader included.
+        // "clock": "lava" = the lava clock (MenuLayout fieldLavaAnimSpeed), anything else = real time (inn clock, user
+        // 2026-11-20: its own sequence at the game's 250 ms; entries for the 4 tile ids the game switches between play in step)
+        sealed class Anim { public string Sheet; public int Tid, Count, Ms, Last = -1; public bool Lava; public Texture2D Src; }
+        static readonly List<Anim> anims = new List<Anim>();
+        static bool animSeen;
+        static readonly Dictionary<string, Texture2D> hdBySheet = new Dictionary<string, Texture2D>(StringComparer.OrdinalIgnoreCase);
+
+        static void LoadAnims(string dir)
+        {
+            foreach (var a in anims) if (a.Src != null && !a.Src.WasCollected) UnityEngine.Object.Destroy(a.Src);
+            anims.Clear(); hdBySheet.Clear();
+            string f = Path.Combine(dir, "anim", "anim.json");
+            if (!File.Exists(f)) return;
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(f));
+                foreach (var e in doc.RootElement.EnumerateArray())
+                {
+                    var a = new Anim { Sheet = e.GetProperty("sheet").GetString(), Tid = e.GetProperty("tid").GetInt32(),
+                                       Count = e.GetProperty("count").GetInt32(), Ms = Math.Max(16, e.GetProperty("ms").GetInt32()),
+                                       // entries written before "clock" existed were all lava
+                                       Lava = !e.TryGetProperty("clock", out var ck) || ck.GetString() == "lava" };
+                    string png = Path.Combine(dir, "anim", e.GetProperty("frames").GetString());
+                    var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                    if (!File.Exists(png) || !ImageConversion.LoadImage(tex, File.ReadAllBytes(png)) || tex.width < a.Count * 32 || tex.height != 32)
+                    {
+                        Plugin.L.LogWarning("[MapTiles] animation frames missing or wrong size: " + png);
+                        UnityEngine.Object.Destroy(tex); continue;
+                    }
+                    tex.filterMode = FilterMode.Point; tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
+                    a.Src = tex;
+                    anims.Add(a);
+                }
+                Plugin.L.LogInfo($"[MapTiles] {anims.Count} tile animation(s) from {f}");
+            }
+            catch (Exception e) { anims.Clear(); Plugin.L.LogWarning("[MapTiles] anim.json not read (no tile animations): " + e.Message); }
+        }
+
+        static void Animate()
+        {
+            if (anims.Count == 0) return;
+            if (!animSeen) { animSeen = true; Log($"animations running: {anims.Count}; HD sheets known: {string.Join(", ", hdBySheet.Keys)}"); }
+            double lava = FieldLava.AnimClockMs();   // MenuLayout "fieldLavaAnimSpeed"
+            double real = Time.unscaledTime * 1000.0;
+            foreach (var a in anims)
+            {
+                if (!hdBySheet.TryGetValue(a.Sheet, out var dst) || dst == null || dst.WasCollected) continue;
+                int k = (int)((long)((a.Lava ? lava : real) / a.Ms) % a.Count);
+                if (k == a.Last) continue;
+                int s = dst.width / 32;
+                if (s != 32 || dst.format != a.Src.format)
+                {
+                    Plugin.L.LogWarning($"[MapTiles] animation {a.Sheet}:{a.Tid}: HD sheet {dst.width}px {dst.format} vs frames 32px {a.Src.format}; not animated");
+                    continue;
+                }
+                int r = a.Tid / 32, c = a.Tid % 32;
+                // PNG row r from the top = texture y from the bottom (Unity origin bottom-left)
+                Graphics.CopyTexture(a.Src, 0, 0, k * 32, 0, 32, 32, dst, 0, 0, c * 32, dst.height - (r + 1) * 32);
+                if (a.Last < 0) Log($"animation {a.Sheet}:{a.Tid}: first frame copied into '{dst.name}' {dst.width}x{dst.height} {dst.format} at ({c * 32},{dst.height - (r + 1) * 32})");
+                a.Last = k;
+            }
+        }
+
+        /// <summary>Every frame right before drawing (Canvas.willRenderCanvases): swap sheets the game just set up, so a new
+        /// map never shows the game's sheet for the up to 0.5 s until the next Tick ("the tileset shows the
+        /// old one for a split-second before switching"). Files are still checked in Tick only.</summary>
+        internal static void PreRender()
+        {
+            if (broken || files == 0) return;
+            try
+            {
+                if (viewGo == null || viewGo.WasCollected) return;
+                Swap(viewGo);
+                Animate();
+            }
+            catch (Exception e)
+            {
+                broken = true;
+                Plugin.L.LogWarning("[MapTiles] stopped (game sheets stay): " + e.Message);
+            }
+        }
+
+        static void Swap(GameObject view)
+        {
+            {
                 string pkg = CurrentPackage(view);
-                if (pkg != lastPkg) { lastPkg = pkg; Plugin.L.LogWarning($"[MapTiles] map package now {pkg ?? "(none)"} (info, not an error)"); }
+                if (pkg != lastPkg) { lastPkg = pkg; Plugin.L.LogInfo($"[MapTiles] map package now {pkg ?? "(none)"}"); }
                 foreach (var r in view.GetComponentsInChildren<MeshRenderer>(true))
                 {
                     var m = r.sharedMaterial;
@@ -168,16 +271,12 @@ namespace FF5MenuSprites
                     // a material we had already swapped shows the game's sheet again: the game (or another mod) set it
                     // back. Logged (max 30) to find out what undoes the swap; it is swapped again here.
                     if (orig.ContainsKey(m.Pointer) && ++resets <= 30)
-                        Plugin.L.LogWarning($"[MapTiles] '{PathOf(r.transform)}': sheet set back to {t.name} {t.width}x{t.height} (reset {resets}); swapping again (info, not an error)");
+                        Plugin.L.LogInfo($"[MapTiles] '{PathOf(r.transform)}': sheet set back to {t.name} {t.width}x{t.height} (reset {resets}); swapping again");
                     orig[m.Pointer] = new KeyValuePair<Material, Texture>(m, t);
                     m.mainTexture = h;
+                    hdBySheet[t.name] = h;
                     Log($"'{PathOf(r.transform)}': {t.name} {t.width}x{t.height} -> {h.width}x{h.height} (x{(float)h.width / t.width:0.##})");
                 }
-            }
-            catch (Exception e)
-            {
-                broken = true;
-                Plugin.L.LogWarning("[MapTiles] stopped (game sheets stay): " + e.Message);
             }
         }
     }

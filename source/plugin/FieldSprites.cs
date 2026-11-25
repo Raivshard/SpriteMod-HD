@@ -10,7 +10,8 @@ namespace FF5MenuSprites
 {
     /// <summary>
     /// MenuLayout "fieldSprites": true swaps field (map) character frames for PNGs in
-    /// GameAssets/Serial/Res/Chara/Map/MO_FF5_xNNN_CNN/&lt;frame&gt;.png beside MenuLayout.json.
+    /// GameAssets/Serial/Res/Chara/Map/MO_FF&lt;n&gt;_xNNN_CNN/&lt;frame&gt;.png beside MenuLayout.json (any game number: FF5 also
+    /// uses 243 MO_FF4_ sets [verified, MagiciteExport folders 2026-11-23]).
     /// Why [verified, KupoUI TextureLogger 2026-11-15]: field characters are SpriteRenderers whose sprites (e.g.
     /// "Default_00(Clone)") are cut from one atlas texture ("sactx-128x128-Uncompressed-MO_FF5_P001_C00-86274720");
     /// KupoUI's SpriteRenderer.sprite hook looks such frames up by sprite name only, and names like "Default_00" also
@@ -43,7 +44,7 @@ namespace FF5MenuSprites
         /// walk the plugin runs its own clock (stride A, passing, stride B, passing) while the game keeps changing
         /// frames, and uses the game's changes only as "still walking" and for the direction. The walk starts on a stride,
         /// the other one than this character showed last (tap, tap = stride A, stride B, like the game's alternation):
-        /// the character already stands in the passing pose (user 2026-11-15: "you can't start with the passing
+        /// the character already stands in the passing pose ("you can't start with the passing
         /// frame ... put the first one on the end"). History: the first version took the delay out of the stride (user:
         /// "this is not allowed to change the other animation frames"). Live.
         /// </summary>
@@ -54,14 +55,14 @@ namespace FF5MenuSprites
         /// 0; F8 2026-11-15: the side passing frame drawn 1 unit higher]. Our frames are placed by their own size files
         /// (shiftY), so the plugin cancels the game's offset of the frame the GAME is on (learned from
         /// SpriteAnimLastFieldEntity.ReflectFrameData). Without this the own clock showed the lift on whatever frame was
-        /// up while the game sat on WalkL_01: the "bouncing" passing pose (user, 2026-11-15).
+        /// up while the game sat on WalkL_01: the "bouncing" passing pose.
         /// </summary>
         static readonly Dictionary<IntPtr, Dictionary<string, float>> gameOffY = new Dictionary<IntPtr, Dictionary<string, float>>();
         static readonly Dictionary<string, Sprite> shifted = new Dictionary<string, Sprite>();   // "spritePtr|units" -> moved copy
         static bool offLogged, offXLogged;
         /// <summary>Seconds a frame with an idle file must stay before the standing frame shows (walk steps: 0.10 s).</summary>
         const float IdleHold = 0.16f;
-        static readonly Regex Atlas = new Regex(@"^sactx-\d+x\d+-[A-Za-z]+-(MO_FF5_[A-Z]\d{3}_C\d{2})-", RegexOptions.Compiled);
+        static readonly Regex Atlas = new Regex(@"^sactx-\d+x\d+-[A-Za-z]+-(MO_FF\d+_[A-Z]\d{3}_C\d{2})-", RegexOptions.Compiled);
         static readonly Dictionary<string, Sprite> made = new Dictionary<string, Sprite>();   // "folder/frame" -> sprite, null = no file
         static readonly HashSet<string> folderLogged = new HashSet<string>();
         static bool inside, broken, idleLogged;
@@ -243,7 +244,7 @@ namespace FF5MenuSprites
                     {
                         // walk starts or turns: a stride first, the passing frame last. Which stride: the other one
                         // than this renderer showed last, so tap, tap plays stride A, then stride B, like the game's
-                        // own alternation (user, 2026-11-15)
+                        // own alternation
                         st.Clock = true; st.Prefix = prefix; st.Step = DefaultStep;
                         st.Phase = st.LastStride == 1 ? 3 : 1;
                         st.LastStride = st.Phase;
@@ -276,7 +277,7 @@ namespace FF5MenuSprites
         }
 
         /// <summary>
-        /// MenuLayout "fieldEffectsUnderCharacters" (default true, needs fieldSprites). Rule (user 2026-11-16): whatever is
+        /// MenuLayout "fieldEffectsUnderCharacters" (default true, needs fieldSprites). Rule: whatever is
         /// lower on screen is in front, as the game does for walls, pots and barrels; the game encodes it as depth from the
         /// feet row (fire quad 247 = the row in front of the hearth; player there 246.5, NPCs a row behind 249) [verified,
         /// F8 11:39]. Problem: field effect quads (Map_NNNNN/FieldEffectBoardEntity(Clone)/VisualParent, e.g. a fireplace
@@ -353,6 +354,9 @@ namespace FF5MenuSprites
                             var r = vp != null ? vp.GetComponent<MeshRenderer>() : null;
                             var m = r != null ? r.sharedMaterial : null;
                             if (m == null || effects.ContainsKey(m.Pointer) || m.renderQueue <= CharaBodyQueue) continue;
+                            // quads swapped to SpriteMod/ObjectBlend (flame.json quadMode) write no depth: they cannot block heads;
+                            // moving them to 345 hid them behind the floor (inn fireplace)
+                            if (m.name == "SpriteModEffectBlend") continue;
                             effects[m.Pointer] = new Eff { R = r, M = m, T = vp, Queue = m.renderQueue, Z = vp.position.z, GameZ = vp.position.z,
                                                            ZTest = m.HasProperty("_ZTestCmpFunc") ? m.GetFloat("_ZTestCmpFunc") : -1f };
                         }
@@ -364,6 +368,8 @@ namespace FF5MenuSprites
                     var o = kv.Value;
                     if (o.M == null || o.M.WasCollected || o.T == null || o.T.WasCollected || o.R == null || o.R.WasCollected)
                     { (gone ??= new List<IntPtr>()).Add(kv.Key); continue; }
+                    if (o.R.sharedMaterial != o.M)                  // material swapped since (quadMode): give back, stop handling
+                    { SetUnder(o, false); (gone ??= new List<IntPtr>()).Add(kv.Key); continue; }
                     if (!o.Under) o.GameZ = o.T.position.z;         // not overwritten by us: the game's own value
                     bool under = false;
                     if (on && o.R.enabled)
@@ -464,7 +470,7 @@ namespace FF5MenuSprites
         /// Keeps the head renderer showing what the body shows. VisualInstanceHead (a sibling of VisualInstanceBody)
         /// never gets an atlas frame through the sprite setter [verified, [FieldDbg] log: no Head lines] and the game
         /// does not copy the body's sprite to it at every step: after the standing frame was put on it once it stayed
-        /// there while walking (user, 2026-11-15) [inferred]. So: any sibling SpriteRenderer that shows one of this
+        /// there while walking [inferred]. So: any sibling SpriteRenderer that shows one of this
         /// character's frames (ours, or the game's atlas for the same folder) is set to the body's current sprite.
         /// </summary>
         static void SyncSiblings(St st)
@@ -501,7 +507,7 @@ namespace FF5MenuSprites
         /// <summary>
         /// MenuLayout "fieldScale" (default 1): size factor for every custom field frame, on top of its size file
         /// (shown pixels per unit = the file's pixelsPerUnit / fieldScale), around the feet. Live: a change rebuilds the
-        /// sprites from the loaded textures and puts each character's current frame back. User 2026-11-16: the size
+        /// sprites from the loaded textures and puts each character's current frame back. the size
         /// should be a MenuLayout value, not baked into ~1,000 size files (they went back to the game-matched 3).
         /// </summary>
         internal static float Scale = 1f;

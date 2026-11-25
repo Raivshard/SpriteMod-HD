@@ -15,7 +15,7 @@ namespace FF5MenuSprites
 {
     /// <summary>
     /// Sizes and places the character sprite on each menu screen. Rules come from
-    /// Modules/System/FF5/MenuLayout.json (re-read when the file changes): for every menu character slot
+    /// the game's MenuLayout.json (Plugin.FindConfig) (re-read when the file changes): for every menu character slot
     /// (Last.UI.MenuCharacterController) whose object path contains a rule's "match", the character image is
     /// scaled to "height" and moved by "moveDown"/"moveRight" (all in screen pixels at 1440p, converted to the
     /// current resolution), keeping the bottom centre as the anchor. Original layout is used if no rule matches.
@@ -25,27 +25,54 @@ namespace FF5MenuSprites
     {
         /// <summary>Project version v0.M.SS.mm (milestone 0-9; small and minor two digits each), tracked in HANDOFF.md. BepInEx keeps only the first
         /// three parts (BepInPlugin.TryParseLongVersion), so the full string is logged on load.</summary>
-        internal const string Version = "0.1.29.33";
+        internal const string Version = "0.1.35.35";
         internal static ManualLogSource L;
         internal static string ConfigPath;
         static Canvas.WillRenderCanvases afterLayout; // kept referenced so it isn't collected
         static float nextSearch;
 
+        /// <summary>Running game as "FF1" … "FF6" (from the exe name, see DetectGame); null = not a known PR game.</summary>
+        internal static string Game;
+
         /// <summary>
-        /// The rules file: Modules/System/FF5/MenuLayout.json if present, else the first (by path) MenuLayout.json
-        /// in any FF5 folder under Modules (e.g. Modules/00-Mods/SpriteMod HD/FF5). Several matches are logged.
-        /// If none exists, the System/FF5 path is returned (and reported missing).
+        /// Game code from BepInEx.Paths.ProcessName: "FINAL FANTASY" = FF1, "FINAL FANTASY V" = FF5, "FINAL FANTASY VI" =
+        /// FF6 [verified exe names 2026-11-23]; II, III, IV = FF2-FF4 [inferred, not installed]. Anything else: null.
+        /// Not taken from the game code: each Assembly-CSharp also holds a few types of other games (Serial.FF6 in FF5).
+        /// </summary>
+        static string DetectGame()
+        {
+            string n = (Paths.ProcessName ?? "").Trim();
+            if (n.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) n = n.Substring(0, n.Length - 4);
+            const string pre = "FINAL FANTASY";
+            if (!n.StartsWith(pre, StringComparison.OrdinalIgnoreCase)) return null;
+            switch (n.Substring(pre.Length).Trim().ToUpperInvariant())
+            {
+                case "": return "FF1";
+                case "II": return "FF2";
+                case "III": return "FF3";
+                case "IV": return "FF4";
+                case "V": return "FF5";
+                case "VI": return "FF6";
+                default: return null;
+            }
+        }
+
+        /// <summary>
+        /// The rules file: Modules/System/&lt;Game&gt;/MenuLayout.json if present, else the first (by path) MenuLayout.json
+        /// in any folder named after the game under Modules (e.g. Modules/00-Mods/SpriteMod HD/FF5). Several matches are
+        /// logged. If none exists, the System/&lt;Game&gt; path is returned (and reported missing). Every other mod folder
+        /// (map_tiles, effects, shaders, _dumps, …) sits beside this file, so the game code picks all of them.
         /// </summary>
         internal static string FindConfig()
         {
             string modules = Path.Combine(Paths.GameRootPath, "Modules");
-            string fixedPath = Path.Combine(modules, "System", "FF5", "MenuLayout.json");
+            string fixedPath = Path.Combine(modules, "System", Game, "MenuLayout.json");
             if (File.Exists(fixedPath)) return fixedPath;
             try
             {
                 var found = new List<string>();
                 foreach (var f in Directory.GetFiles(modules, "MenuLayout.json", SearchOption.AllDirectories))
-                    if (string.Equals(Path.GetFileName(Path.GetDirectoryName(f)), "FF5", StringComparison.OrdinalIgnoreCase)) found.Add(f);
+                    if (string.Equals(Path.GetFileName(Path.GetDirectoryName(f)), Game, StringComparison.OrdinalIgnoreCase)) found.Add(f);
                 found.Sort(StringComparer.OrdinalIgnoreCase);
                 if (found.Count > 1) L?.LogWarning("[MenuLayout] several rules files found, using the first: " + string.Join(" | ", found));
                 if (found.Count > 0) return found[0];
@@ -70,11 +97,17 @@ namespace FF5MenuSprites
         public override void Load()
         {
             L = Log;
+            Game = DetectGame();
+            if (Game == null)
+            {
+                Log.LogWarning("[MenuLayout] SpriteMod v" + Version + ": unknown game exe '" + Paths.ProcessName + "', plugin stays off");
+                return;
+            }
             ConfigPath = FindConfig();
             try
             {
                 AddComponent<LayoutWatcher>();
-                Log.LogInfo("[MenuLayout] FF5 Menu Sprites v" + Version + " loaded; rules file " + ConfigPath);
+                Log.LogWarning("[MenuLayout] FF5 Menu Sprites v" + Version + " loaded for " + Game + "; rules file " + ConfigPath + " (info, not an error)");
             }
             catch (Exception e)
             {
@@ -85,6 +118,12 @@ namespace FF5MenuSprites
             Cleanup.Install(harmony);
             ScrollSpacing.Install(harmony);
             FieldSprites.Install(harmony);
+            try { FieldMapShadows.Install(harmony); }
+            catch (Exception e) { Log.LogWarning("[MapShadow] could not start: " + e.Message); }
+            try { FieldLava.Install(harmony); }
+            catch (Exception e) { Log.LogWarning("[Lava] could not start: " + e.Message); }
+            try { FieldLayouts.Install(harmony); }
+            catch (Exception e) { Log.LogWarning("[MapLayout] could not start: " + e.Message); }
             SaveShots.Install(harmony);
             try { KupoTextureCache.Install(harmony); }
             catch (Exception e) { Log.LogWarning("[KupoCache] could not start: " + e.Message); }
@@ -136,6 +175,10 @@ namespace FF5MenuSprites
                         // put back here, after all game updates and right before drawing (attempt 3, 2026-11-16)
                         try { FieldSprites.PreRender(); }
                         catch (Exception e) { L.LogWarning("[Field] pre-render: " + e.Message); }
+                        try { FieldTiles.PreRender(); }
+                        catch (Exception e) { L.LogWarning("[MapTiles] pre-render: " + e.Message); }
+                        try { FieldMapShadows.PreRender(); }
+                        catch (Exception e) { L.LogWarning("[MapShadow] pre-render: " + e.Message); }
                     }));
                 else Canvas.remove_willRenderCanvases(afterLayout);
                 Canvas.add_willRenderCanvases(afterLayout);
@@ -488,6 +531,71 @@ namespace FF5MenuSprites
                         FieldSprites.Enabled = root.TryGetProperty("fieldSprites", out var fsp) && fsp.ValueKind == JsonValueKind.True;
                         FieldSprites.Debug = root.TryGetProperty("fieldSpritesDebug", out var fsd) && fsd.ValueKind == JsonValueKind.True;
                         FieldSprites.EffectsUnder = !(root.TryGetProperty("fieldEffectsUnderCharacters", out var feu) && feu.ValueKind == JsonValueKind.False);
+                        FieldFlames.Enabled = !(root.TryGetProperty("fieldFlames", out var ffl) && ffl.ValueKind == JsonValueKind.False);
+                        FieldMapShadows.Enabled = !(root.TryGetProperty("fieldMapShadows", out var fms) && fms.ValueKind == JsonValueKind.False);
+                        FieldLava.Speed = root.TryGetProperty("fieldLavaSpeed", out var fls) && fls.ValueKind == JsonValueKind.Number
+                            ? Mathf.Clamp(fls.GetSingle(), 0.05f, 4f) : 0.5f;
+                        FieldLava.Blend = root.TryGetProperty("fieldLavaWaterBlend", out var flb) && flb.ValueKind == JsonValueKind.Number
+                            ? Mathf.Clamp(flb.GetSingle(), 0f, 1f) : 1f;
+                        FieldLava.AnimSpeed = root.TryGetProperty("fieldLavaAnimSpeed", out var flas) && flas.ValueKind == JsonValueKind.Number
+                            ? Mathf.Clamp(flas.GetSingle(), 0f, 8f) : 1f;
+                        FieldMapShadows.LavaOpacity = root.TryGetProperty("fieldLavaOpacity", out var flo) && flo.ValueKind == JsonValueKind.Number
+                            ? Mathf.Clamp01(flo.GetSingle()) : 0.5f;
+                        {
+                            // fieldLavaBlend: { "mode": "linearBurn", "opacity": 1, "water": [b0, b1, w0, w1], "lava": [b0, b1, w0, w1] } (0..255)
+                            string[] modes = { "normal", "multiply", "screen", "overlay", "linearBurn", "colorBurn", "linearDodge", "softLight", "vividLight", "linearLight", "color" };
+                            int mode = 4; float op = 1f;
+                            Vector4 wr = new Vector4(0, 0, 255, 255), lr = new Vector4(0, 0, 255, 255);
+                            Vector4 R(JsonElement e, Vector4 d)
+                            {
+                                if (e.ValueKind != JsonValueKind.Array || e.GetArrayLength() != 4) return d;
+                                var v = new float[4]; int n = 0;
+                                foreach (var x in e.EnumerateArray()) v[n++] = x.ValueKind == JsonValueKind.Number ? Mathf.Clamp(x.GetSingle(), 0f, 255f) : 0f;
+                                return new Vector4(v[0], v[1], v[2], v[3]);
+                            }
+                            if (root.TryGetProperty("fieldLavaBlend", out var flbo) && flbo.ValueKind == JsonValueKind.Object)
+                            {
+                                if (flbo.TryGetProperty("mode", out var fm) && fm.ValueKind == JsonValueKind.String)
+                                {
+                                    int k = Array.FindIndex(modes, x => string.Equals(x, fm.GetString(), StringComparison.OrdinalIgnoreCase));
+                                    if (k >= 0) mode = k; else Plugin.L.LogWarning($"[MenuLayout] fieldLavaBlend mode '{fm.GetString()}' unknown; one of: {string.Join(", ", modes)}");
+                                }
+                                if (flbo.TryGetProperty("opacity", out var fop) && fop.ValueKind == JsonValueKind.Number) op = Mathf.Clamp01(fop.GetSingle());
+                                if (flbo.TryGetProperty("water", out var fw)) wr = R(fw, wr);
+                                if (flbo.TryGetProperty("lava", out var fl2)) lr = R(fl2, lr);
+                            }
+                            FieldMapShadows.BlendMode = mode; FieldMapShadows.BlendOpacity = op;
+                            FieldMapShadows.WaterRange = wr; FieldMapShadows.LavaRange = lr;
+                            // fieldLavaEdge: { "mode": "normal", "opacity": 1, "water": [b0, b1, w0, w1], "lava": [...] } (0..255);
+                            // the colours come from the painted PNG (user: the single colour "washes everything out");
+                            // optional "color": "#RRGGBB" tints the PNG like a Photoshop Color layer (hue + saturation only)
+                            int em = 0; float eo = 1f;
+                            var et = new Color(1f, 1f, 1f, 0f);
+                            Vector4 ew = new Vector4(0, 0, 255, 255), el = new Vector4(0, 0, 255, 255);
+                            if (root.TryGetProperty("fieldLavaEdge", out var fle) && fle.ValueKind == JsonValueKind.Object)
+                            {
+                                if (fle.TryGetProperty("mode", out var em2) && em2.ValueKind == JsonValueKind.String)
+                                {
+                                    int k = Array.FindIndex(modes, x => string.Equals(x, em2.GetString(), StringComparison.OrdinalIgnoreCase));
+                                    if (k >= 0) em = k; else Plugin.L.LogWarning($"[MenuLayout] fieldLavaEdge mode '{em2.GetString()}' unknown; one of: {string.Join(", ", modes)}");
+                                }
+                                if (fle.TryGetProperty("opacity", out var eo2) && eo2.ValueKind == JsonValueKind.Number) eo = Mathf.Clamp01(eo2.GetSingle());
+                                if (fle.TryGetProperty("color", out var ec2) && ec2.ValueKind == JsonValueKind.String)
+                                {
+                                    string hx = ec2.GetString().TrimStart('#');
+                                    if (hx.Length == 6 && int.TryParse(hx, System.Globalization.NumberStyles.HexNumber, null, out int rgb))
+                                        et = new Color((rgb >> 16 & 255) / 255f, (rgb >> 8 & 255) / 255f, (rgb & 255) / 255f, 1f);
+                                    else Plugin.L.LogWarning($"[MenuLayout] fieldLavaEdge color '{ec2.GetString()}' not a colour (#RRGGBB)");
+                                }
+                                if (fle.TryGetProperty("water", out var ew2)) ew = R(ew2, ew);
+                                if (fle.TryGetProperty("lava", out var el2)) el = R(el2, el);
+                            }
+                            FieldMapShadows.EdgeMode = em; FieldMapShadows.EdgeOpacity = eo;
+                            FieldMapShadows.EdgeWater = ew; FieldMapShadows.EdgeLava = el; FieldMapShadows.EdgeTint = et;
+                            FieldMapShadows.BlendVersion++;
+                        }
+                        FieldFlames.Resolution = root.TryGetProperty("fieldEffectResolution", out var fer) && fer.ValueKind == JsonValueKind.Number
+                            ? Mathf.Clamp(fer.GetSingle(), 1f, 8f) : 2f;
                         // fieldCeilingSigns: { "<sheet>": [[x, y], ...] } top-left pixel of each 16 px tile, y from the top
                         var ceilSigns = new Dictionary<string, HashSet<(int, int)>>(StringComparer.OrdinalIgnoreCase);
                         if (root.TryGetProperty("fieldCeilingSigns", out var fcs) && fcs.ValueKind == JsonValueKind.Object)
@@ -786,7 +894,7 @@ namespace FF5MenuSprites
                 catch (IOException e) when (busyRetries < 50)
                 {
                     // Busy (the editor still holds it while saving): keep the current settings and read again at the next
-                    // check, instead of keeping stale settings until the next save (user, 2026-11-14: groundShadow
+                    // check, instead of keeping stale settings until the next save (groundShadow
                     // azimuth changes were ignored; log showed "being used by another process" twice [verified]).
                     busyRetries++;
                     if (busyRetries == 1) Plugin.L.LogWarning("[MenuLayout] rules file busy (being saved?), reading it again shortly: " + e.Message);
@@ -953,19 +1061,19 @@ namespace FF5MenuSprites
     /// row; negative = closer to the front row. Row = the member's x against its slot's front-row x (back row = +16
     /// units [verified, row-probe log 2026-11-12]), so the extra follows the game's own slide. Attempt 2 used
     /// Last.Battle.AnimStateController.isFrontCorps: it does not change with the Row command [verified, same log]. First attempt (2026-11-10) set the static BattleConstants.CorpsBackPlayerPositionX: no effect
-    /// (user); its values (front 92, back 108, y spacing 16) do not match the party's world positions (x 98..68,
+    ///; its values (front 92, back 108, y spacing 16) do not match the party's world positions (x 98..68,
     /// y spacing 25) [verified, log + F8 dump], so the game does not place the party from them.
     static class BattleCharScale
     {
         internal static float Ppu = 6.667f;
         /// <summary>"battle.customScale": on-screen size factor for replaced party sprites drawn at game-art density
         /// (texture at most 2x the mesh, KupoUI name "..._Custom" [verified, F8 dump 2026-11-07]), e.g. 1.5 for the
-        /// PSP sets kept at their real 64 px size (user, 2026-11-15). 1 = game size. HD art (texture wider than 2x the
+        /// PSP sets kept at their real 64 px size. 1 = game size. HD art (texture wider than 2x the
         /// mesh) keeps the hdPixelsPerUnit sizing.</summary>
         internal static float CustomScale = 1f;
         /// <summary>"battle.miniScale": size of a party member under Mini, as a share of its normal on-screen size. The
         /// game's own Mini set is replaced by the member's normal job set (MiniPatches), so no Mini art is needed
-        /// (user, 2026-11-15). Default 0.5 (vanilla Mini is 11-12 px tall vs 23-24 px [measured, Extracted M vs J00]).
+        ///. Default 0.5 (vanilla Mini is 11-12 px tall vs 23-24 px [measured, Extracted M vs J00]).
         /// 0 = off: the game's own Mini sprites.</summary>
         internal static float MiniScale = 0.5f;
         internal static float PartyRight, PartyDown;
@@ -1389,9 +1497,9 @@ namespace FF5MenuSprites
                 if (DepthScale > 0f && battle != null)
                 {
                     // A lifted body (flyer, Float) is higher, not farther: its size comes from the ground under it
-                    // (user, 2026-11-13); LiftW is last frame's lift from groundShadow (0 when that is off).
+                    //; LiftW is last frame's lift from groundShadow (0 when that is off).
                     var feetD = s.T.TransformPoint(new Vector3(b.center.x, b.min.y, b.center.z));
-                    // Height also brings it closer to the camera (user, 2026-11-13): with the ground seen at a slant
+                    // Height also brings it closer to the camera: with the ground seen at a slant
                     // (groundTilt t = sin of the view's tilt), rising h comes h x cos toward the camera, which the
                     // depth look reads like standing h x cos x t further down the screen. So the size is read at
                     // ground point - lift x t x sqrt(1 - t^2) [inferred geometry; t = 0.5 -> 0.43 x lift].
@@ -1449,7 +1557,7 @@ namespace FF5MenuSprites
                         // feet = minus the partySlots/backRowShift offset]. px at 1440p -> world units.
                         memberOffset.TryGetValue(s.PL.Pointer, out var mo);
                         var off = new Vector3(mo.x * unitsPerPx, -mo.y * unitsPerPx, 0f);
-                        // The weapon also gets the body's HD size factor k (user, 2026-11-14: weapons looked far too
+                        // The weapon also gets the body's HD size factor k (weapons looked far too
                         // small next to 1.5x PSP bodies; they had depthScale only), around the same feet.
                         Weapon(s, s.Ent.BattleWeaponRight, f * k, feet, off);
                         Weapon(s, s.Ent.BattleWeaponLeft, f * k, feet, off);
@@ -1744,7 +1852,7 @@ namespace FF5MenuSprites
         /// groundShadow (GPU, step 2): lists the body for GpuShadow's shadow buffer with its ground points (world) and
         /// lift. No mesh is built: the GPU draws the game's own renderer. Lift: lowest ground point against the game
         /// shadow's centre (see FlyGap); a lifted body's ground points are lowered by the lift, so the gap counts as
-        /// part of the sprite (user, 2026-11-13).
+        /// part of the sprite.
         /// </summary>
         static void Ground(St s, Bounds b, Mesh mesh, Texture tex)
         {
@@ -1797,11 +1905,11 @@ namespace FF5MenuSprites
                 // the air and the ground is the game's shadow itself.
                 lift = s.RestGap <= FlyGap ? gap - s.RestGap : gap;
                 if (lift < 1f) lift = 0f;   // noise (0.09 seen on a standing member, log 2026-11-13) is not a lift
-                // A flyer's own round shadow is replaced by the cast one (user, 2026-11-13).
+                // A flyer's own round shadow is replaced by the cast one.
                 gs.FlyHide = s.Enemy && s.RestGap > FlyGap;
             }
             s.LiftW = lift;                                           // the real height: depthScale sizing
-            // Shadow gap (user, 2026-11-14, chosen in the simulator): the gap is empty space under the sprite, measured
+            // Shadow gap (chosen in the simulator): the gap is empty space under the sprite, measured
             // to the BASE of the default shadow (a flyer's lift is to its centre; the base is half its height lower
             // [verified, F8 dump: EnemyShadow 7.81 units tall]), and doubled: the nearest shadow lands
             // 2 x gap / tan(elevation) from the ground point. The shader places the body with its lowest 3D point this
@@ -1933,7 +2041,7 @@ namespace FF5MenuSprites
     }
 
     /// <summary>
-    /// Mini without Mini art (user, 2026-11-15): the game loads a party member's battle poses with
+    /// Mini without Mini art: the game loads a party member's battle poses with
     /// Last.Battle.InstantiateManager.LoadPlayerMotions(Int32, Int32, ConditionType) and swaps them with
     /// ChangePlayerMotions(BattlePlayerEntity, Int32, Int32, ConditionType) [verified, interop dump]. Mini is
     /// Last.Defaine.ConditionType.Child = 401 [verified: enum value; condition.csv row 13 has type 401; Old = Aging = 32
@@ -2106,7 +2214,7 @@ namespace FF5MenuSprites
         /// <summary>
         /// CameraBattlebackGround draws into a render texture [verified, F8 dump] that Last.Battle.BattleBackgroundController
         /// puts on a material (SetMaterialTexture, interop dump). The renderer showing that texture is drawn by
-        /// CameraBattle (user 2026-11-06: the background moved with the sprites) [inferred], so it is raised by the same
+        /// CameraBattle (the background moved with the sprites) [inferred], so it is raised by the same
         /// distance as the cameras and stays put on screen. Found by its texture, and only used if CameraBattle's culling
         /// mask includes its layer, so the background camera's own sprites are never moved.
         /// </summary>
@@ -2160,7 +2268,7 @@ namespace FF5MenuSprites
 
         // The background view (the quad showing the background render texture) keeps a fixed offset to CameraBattle's
         // own (unshifted) position, learned the first time that object is seen. Base-tracking it like the cameras made
-        // it climb one shift per battle (user 2026-11-07: TextureRender y 25.5 -> 102 after 4 battles [verified, F8]).
+        // it climb one shift per battle (TextureRender y 25.5 -> 102 after 4 battles [verified, F8]).
         static IntPtr viewKey;
         static Transform viewT;
         static float viewRel, viewSetY = float.NaN, viewRestY;
@@ -3011,7 +3119,7 @@ namespace FF5MenuSprites
                     if (!it.V.isActiveAndEnabled)
                     {
                         // Its menu was closed while it was highlighted: put it back to normal now, or it comes back
-                        // grown and that size becomes its base (user 2026-11-05: items larger after leaving a submenu).
+                        // grown and that size becomes its base (items larger after leaving a submenu).
                         if (it.T > 0f) { it.T = 0f; Restore(it); }
                         continue;
                     }
@@ -3889,7 +3997,7 @@ namespace FF5MenuSprites
                 float x = local.x * ppu, y = -local.y * ppu;   // px from the screen centre, y down
                 var d = new Vector2((feet.x - x) * (1f - feet.z), (feet.y - y) * (1f - feet.z));
                 // The hand points at the visible figure's left edge (+ the rule's moveRight): the HD figures fill their
-                // canvas differently, so the scaled place was a bit far on 512 px art, a bit close on 248 px (user).
+                // canvas differently, so the scaled place was a bit far on 512 px art, a bit close on 248 px.
                 float edge = float.NaN, eu = -1f;
                 if (it.CursorIsHand && BattleCharScale.EdgeOfCursor(it.CursorPtr, out var ex, out eu)) { edge = ex; d.x = ex - x; }
                 float logKey = feet.z + (float.IsNaN(edge) ? 0f : Mathf.Round(edge) * 1000f);
@@ -4088,7 +4196,7 @@ namespace FF5MenuSprites
                             if (txt.fontSize != want) txt.fontSize = want;
                             // KupoUI.PR patches the Text fontSize / resizeTextForBestFit setters (FontSizeSetterPrefix,
                             // ResizeTextForBestFitSetterPrefix: strings in KupoUI.PR.dll) and keeps its own size for texts in
-                            // its fonts (user 2026-11-06: fontScale ignored with a KupoUI font, works with our own) [inferred].
+                            // its fonts (fontScale ignored with a KupoUI font, works with our own) [inferred].
                             // Our own copy of the font (set above) avoids that; if the size still does not stick, say so once.
                             if (!it.SizeHeldLogged && (txt.fontSize != want || txt.resizeTextForBestFit))
                             {
@@ -4656,11 +4764,43 @@ namespace FF5MenuSprites
                 var b = t.GetComponent<Last.UI.CommandMenuContentView>(); if (b != null) return () => b.isFocus;
                 var c = t.GetComponent<Last.UI.KeyInput.ItemCommandContentView>(); if (c != null) return () => c.isFocus;
                 var d = t.GetComponent<Last.UI.KeyInput.CharacterSelectCommandContentView>(); if (d != null) return () => d.isFocus;
-                var e = t.GetComponent<Serial.FF5.UI.KeyInput.AbilityCommandContentView>(); if (e != null) return () => e.isFocus;
+                var e = AbilityFocus(t); if (e != null) return e;
                 var f = t.GetComponent<Last.UI.KeyInput.NameContentView>(); if (f != null) return () => f.isFocus;
                 var g = t.GetComponent<Last.UI.KeyInput.TitleCommandContentView>(); if (g != null) return () => g.isFocus;
             }
             return null;
+        }
+
+        static bool abilityLooked;
+        static Type abilityType;
+        static Il2CppSystem.Type abilityIl2;
+        static System.Reflection.MethodInfo abilityGet;
+
+        /// <summary>
+        /// The ability menu view is game-specific: Serial.FF&lt;n&gt;.UI.KeyInput.AbilityCommandContentView (MonoBehaviour,
+        /// isFocus, ctor(IntPtr); same members in FF1/FF5/FF6 [verified, interop dump 2026-11-23]), so it is looked up
+        /// by name for the running game instead of being compiled in. Not found: logged once, the view keeps no focus check.
+        /// </summary>
+        static Func<bool> AbilityFocus(Transform t)
+        {
+            if (!abilityLooked)
+            {
+                abilityLooked = true;
+                try
+                {
+                    string name = "Serial." + Plugin.Game + ".UI.KeyInput.AbilityCommandContentView";
+                    abilityType = typeof(Last.UI.ItemListContentView).Assembly.GetType(name);
+                    abilityGet = abilityType?.GetProperty("isFocus")?.GetGetMethod();
+                    if (abilityGet != null) abilityIl2 = Il2CppType.From(abilityType);
+                    else Plugin.L.LogWarning("[Elements] " + name + " (isFocus) not found; ability menu focus not tracked");
+                }
+                catch (Exception ex) { abilityIl2 = null; Plugin.L.LogWarning("[Elements] ability view lookup failed: " + ex.Message); }
+            }
+            if (abilityIl2 == null) return null;
+            var c = t.GetComponent(abilityIl2);
+            if (c == null) return null;
+            var view = Activator.CreateInstance(abilityType, c.Pointer);
+            return (Func<bool>)Delegate.CreateDelegate(typeof(Func<bool>), view, abilityGet);
         }
 
         /// <summary>For the F8 dump: object -> names of the rules that matched it.</summary>
@@ -5266,7 +5406,7 @@ namespace FF5MenuSprites
     /// <summary>
     /// Screen dump: pressing the key from MenuLayout.json "dumpKey" (default F8; F1-F12; "" = off) while the game
     /// window has focus writes every active UI object and sprite on screen to
-    /// Modules/System/FF5/_dumps/screen_&lt;time&gt;.tsv: object path, components, 1440p box (y down from the top),
+    /// _dumps/ beside MenuLayout.json: screen_&lt;time&gt;.tsv: object path, components, 1440p box (y down from the top),
     /// and text / font / size / colour / sprite / layout settings, to find paths and names for rules.
     /// The key is read with Unity's own input (UnityEngine.Input.GetKey, InputLegacyModule [verified, interop dump
     /// 2026-11-14]), not a Windows keyboard API: user32 GetAsyncKeyState is a keylogger signature for virus scanners.
@@ -5587,8 +5727,14 @@ namespace FF5MenuSprites
                 catch (Exception e) { Plugin.L.LogWarning("[Field] " + e.Message); }
                 try { SaveShots.Tick(); }
                 catch (Exception e) { Plugin.L.LogWarning("[SaveList] " + e.Message); }
+                try { FieldLava.Tick(); }
+                catch (Exception e) { Plugin.L.LogWarning("[Lava] " + e.Message); }
                 try { FieldTiles.Tick(); }
                 catch (Exception e) { Plugin.L.LogWarning("[MapTiles] " + e.Message); }
+                long tf = Perf.Start();
+                try { FieldFlames.Tick(); }
+                catch (Exception e) { Plugin.L.LogWarning("[Flames] " + e.Message); }
+                Perf.Stop("flames", tf);
                 // Objects the game switched on since last frame: check only those (no scene sweeps).
                 long t0 = Perf.Start();
                 if (Discovery.Pending.Count > 0)
@@ -5863,7 +6009,7 @@ namespace FF5MenuSprites
                 if (posSame && scaleSame) return;
                 // The game moved or rescaled the image: its new value is the original, but only for what it changed.
                 // Put our own change back on the other one first, or the offset is added again on every character
-                // switch (status/magic sprites crept left and down; user 2026-11-05).
+                // switch (status/magic sprites crept left and down).
                 if (posSame) rt.localPosition = t.OrigPos;
                 if (scaleSame) rt.localScale = t.OrigScale;
                 t.Applied = false;

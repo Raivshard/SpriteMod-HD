@@ -10,10 +10,12 @@ import re
 import os
 import sys
 from pathlib import Path
+sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))  # tools folder: games.py
+from games import GAME  # --game FF6 picks the game (tools\games.json)
 
 HERE = Path(__file__).resolve().parent
-# Game folder: environment variable FF5_GAME, else the default below.
-GAME_DIR = Path(os.environ.get("FF5_GAME", r"C:\Program Files (x86)\Steam\steamapps\common\FINAL FANTASY V PR")) / "Modules" / "00-Mods" / "SpriteMod HD" / "FF5"
+# Game: --game FF6 (tools\games.json; FF5_GAME still overrides the FF5 folder).
+GAME_DIR = GAME.mod
 # Schema: the project's docs copy, else the one installed beside MenuLayout.json.
 SCHEMA = next((p for p in (HERE.parent / "docs" / "MenuLayout_schema.json", GAME_DIR / "MenuLayout_schema.json") if p.exists()),
               GAME_DIR / "MenuLayout_schema.json")
@@ -106,7 +108,7 @@ def main():
     beside = files[0].resolve().parent / "MenuLayout_schema.json"
     schema_path = beside if beside.exists() else SCHEMA
     if not schema_path.exists():
-        print(f"schema not found: {schema_path} (set FF5_GAME to the game folder, or pass a file that has the schema beside it)")
+        print(f"schema not found: {schema_path} (pick the game with --game, or pass a file that has the schema beside it)")
         return 2
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     total = 0

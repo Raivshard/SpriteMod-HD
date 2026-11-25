@@ -1,0 +1,9 @@
+{ "_about": "Per-game paths for every tool. Edit 'steam' if your games are elsewhere; add a game with its install folder and exe name (without .exe). Tools pick one with --game FF6 (Python) or -Game FF6 (PowerShell); default below.",
+  "steam": "C:\\Program Files (x86)\\Steam\\steamapps\\common",
+  "default": "FF5",
+  "games": {
+    "FF1": { "folder": "FINAL FANTASY PR", "exe": "FINAL FANTASY" },
+    "FF5": { "folder": "FINAL FANTASY V PR", "exe": "FINAL FANTASY V" },
+    "FF6": { "folder": "FINAL FANTASY VI PR", "exe": "FINAL FANTASY VI" }
+  }
+}

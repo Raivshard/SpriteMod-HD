@@ -27,6 +27,15 @@
     "fastSaveList": { "type": "boolean", "description": "Save/Load list: slot screenshots are decoded in the background so the list opens at once. Default true. Live. Main file only." },
     "fieldCeilingSigns": { "type": "object", "description": "fieldSprites: ceiling-layer tiles (signs) that taller heads may cover. Sheet name -> list of [x, y] top-left pixels (y from the top) of 16 px tiles in the exported sheet PNG. Live. Main file only.", "additionalProperties": { "type": "array", "items": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 } } },
     "fieldEffectsUnderCharacters": { "type": "boolean", "description": "fieldSprites: map effect squares (e.g. fireplace fire) drawn before the characters, so larger character sprites in front of them cover them. Default true; false = the game's order. Live. Main file only." },
+    "fieldMapShadows": { "type": "boolean", "description": "Map shadows from map_shadows/<Map>.png beside this file (needs map files). Default true; false = off. Live. Main file only." },
+    "fieldFlames": { "type": "boolean", "description": "Deprecated (use map objects with a Tiled animation and blend mode). Flame frames for map fire effects from effects/<effect>/flame_*.png (needs effect files; tested in FF5). Default true; false = the game's flames. Live. Main file only." },
+    "fieldEffectResolution": { "type": "number", "minimum": 1, "maximum": 8, "description": "Map fire effects: their 40x40 px picture is made this many times larger, so flame frames and sparks stay sharp. Default 2. Live. Main file only." },
+    "fieldLavaSpeed": { "type": "number", "minimum": 0.05, "maximum": 4, "description": "Lava drawn by the game's water shader (lava-coloured water, e.g. FF5 Karnak): scroll speed, 1 = the game's. Default 0.5. Live. Main file only." },
+    "fieldLavaWaterBlend": { "type": "number", "minimum": 0, "maximum": 1, "description": "Same lava: multiplies the shader's blend values; below 1 = the lava tile shows through more. Default 1. Live. Main file only." },
+    "fieldLavaAnimSpeed": { "type": "number", "minimum": 0, "maximum": 8, "description": "Speed of the lava layer's frames and of map_tiles/anim tile animations; 0 = still. Default 1. Live. Main file only." },
+    "fieldLavaOpacity": { "type": "number", "minimum": 0, "maximum": 1, "description": "Lava layer (map_shadows/<Map>.lava.json, needs map files): how much of the animated lava shows over the game's lava surface. Default 0.5. Live. Main file only." },
+    "fieldLavaBlend": { "$ref": "#/definitions/lavaBlend", "description": "Lava layer (needs map files): how the game's moving surface (top) is blended onto the lava frames (bottom). Default mode linearBurn, opacity 1. Live. Main file only." },
+    "fieldLavaEdge": { "type": "object", "properties": { "mode": { "$ref": "#/definitions/lavaBlend/properties/mode" }, "opacity": { "type": "number", "minimum": 0, "maximum": 1 }, "water": { "$ref": "#/definitions/blendIf" }, "lava": { "$ref": "#/definitions/blendIf" }, "color": { "type": "string", "pattern": "^#?[0-9A-Fa-f]{6}$", "description": "#RRGGBB: tints the edge PNG (hue and saturation)." } }, "description": "Lava layer (needs map files): lighter edge from map_shadows/lava_edge.png on lava cells with no lava north of them. Default mode normal, opacity 1. Live. Main file only." },
     "fieldSpritesDebug": { "type": "boolean", "description": "Diagnostic: log every frame the game sets on a field character ([FieldDbg], max 400 lines). Leave out or false. Live. Main file only." },
     "fieldSprites": { "type": "boolean", "description": "true = field (map) character frames from GameAssets/Serial/Res/Chara/Map/MO_FF5_<id>/<frame>.png beside this file (size file <frame>.json pixelsPerUnit). Live. Main file only." },
     "kupoSkipUnreadable": { "type": "boolean", "description": "Harmful (removes custom menu art); leave out or false. Main file only." },
@@ -87,6 +96,12 @@
     }
   },
   "definitions": {
+    "lavaBlend": { "type": "object", "properties": {
+      "mode": { "enum": ["normal", "multiply", "screen", "overlay", "linearBurn", "colorBurn", "linearDodge", "softLight", "vividLight", "linearLight", "color"], "description": "Blend mode (case does not matter)." },
+      "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+      "water": { "$ref": "#/definitions/blendIf", "description": "Blend If range of the top layer (the game's surface)." },
+      "lava": { "$ref": "#/definitions/blendIf", "description": "Blend If range of the bottom layer (the lava frames)." } } },
+    "blendIf": { "type": "array", "items": { "type": "number", "minimum": 0, "maximum": 255 }, "minItems": 4, "maxItems": 4, "description": "[b0, b1, w0, w1], 0-255, like Photoshop's Blend If sliders; [0, 0, 255, 255] = all." },
     "color": { "type": "string", "pattern": "^#?([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$", "description": "#RRGGBB or #RRGGBBAA." },
     "strings": { "anyOf": [ { "type": "string" }, { "type": "array", "items": { "type": "string" } } ] },
     "pad": { "anyOf": [ { "type": "number" }, { "type": "array", "items": { "type": "number" }, "minItems": 1, "maxItems": 2 } ], "description": "n, [n] or [left/right, top/bottom], px." },

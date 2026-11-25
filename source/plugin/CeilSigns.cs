@@ -103,6 +103,11 @@ namespace FF5MenuSprites
             if (s.Go == null) { Hide(s); return; }
             var mf = s.Go.GetComponent<MeshFilter>();
             var mr = s.Go.GetComponent<MeshRenderer>();
+            // Draw only while the game draws this ceiling. Rooms without a ceiling (Karnak pub, inn, equipment shop) keep the
+            // town's ceiling mesh with its old pictures but switch it off [verified, F8 2026-11-17: CeilLayer_opaque absent from
+            // the enabled+active renderer list inside, present in town]; without this check the town's signs showed inside and
+            // followed the camera. Slots go back to the game so the town shows them when it comes back.
+            if (mr == null || !mr.enabled || !s.Go.activeInHierarchy) { Release(s); Hide(s); return; }
             var mesh = mf != null ? mf.sharedMesh : null;
             var mat = mr != null ? mr.sharedMaterial : null;
             var tex = mat != null ? mat.mainTexture : null;

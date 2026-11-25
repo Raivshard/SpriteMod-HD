@@ -1,22 +1,23 @@
 r"""Build the map tile catalogue: every 16 px tile image of every map sheet as one shared item.
 
-Reads the game's export (read-only): map_NNNNN/.../Res/Map/Map_NNNNN/*chip_*.png (512x512 = 32 x 32 tiles of 16 px),
+Reads the game's export (read-only): map_NNNNN/.../Res/Map/Map_NNNNN/*.png, the tile sheets (512x512 = 32 x 32 tiles
+of 16 px; FF5 map_chip_NNN, FF6 mapNNN, FF1 Map_NNNNN),
 every tilemap.json (Tiled; 4 tile layers; tileset `tiles` = animations) and collision.json [verified, docs/verified_facts.md
 "Field maps and tiles"].
 
 Item = one tile image, named t_<first 12 hex of the md5 of its 16x16 RGBA pixels>. The same image in 40 sheets is one
-item (user, 2026-11-15: shared items + per-sheet overrides). Fully transparent cells are not items.
+item (shared items + per-sheet overrides). Fully transparent cells are not items.
 Sheet version: 23 sheet names have different pixels in different map packages [verified]; each pixel version is its own
 sheet key: the plain name if a name has one version, else <name>@<first package> (e.g. map_chip_063@map_30090).
 
-Output (<out>, default data/map_tiles/catalog; refuses to overwrite without --force, never touches labels.csv):
+Output (<out>, default the map project's catalogue (project.py; FF5: data/catalogs/FF5); refuses to overwrite without --force, never touches labels.csv):
   sheets.csv       sheet key, name, packages, pixel md5, tiles (non-empty), tiles used on maps
   sheet_tiles.csv  sheet key, tile id (row * 32 + column), item
   items.csv        item, sheets, cells placed, maps, layers (B/G/U/C counts), animation frame, collision values seen,
                    first sheet:id, all sheet:id
   labels.csv       item, label, group, note (created once with every used item; yours to edit)
   items_16\<item>.png   the 16 px tile (reference / template)
-Usage: python map_tile_catalog.py [--export <MagiciteExport>] [--out <dir>] [--force]
+Usage: python map_tile_catalog.py [--game FF6] [--export <MagiciteExport>] [--out <dir>] [--force]
 """
 import csv
 import glob
@@ -28,9 +29,13 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from PIL import Image
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from project import P   # map project (project.json): paths, lists, game
+sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]))  # tools folder: games.py
+from games import GAME  # --game FF6 picks the game (tools\games.json)
 
 PROJECT = Path(__file__).resolve().parents[2]
-EXPORT = r"C:\Program Files (x86)\Steam\steamapps\common\FINAL FANTASY V PR\FINAL FANTASY V_Data\StreamingAssets\MagiciteExport"
+EXPORT = str(GAME.export)   # --game FF6 picks the game; --export <folder> overrides
 T, COLS = 16, 32
 GID_MASK = 0x1FFFFFFF   # Tiled stores flip flags in the top bits
 LAYER_LETTER = {"BottomLayer": "B", "GroundLayer": "G", "UpperLayer": "U", "CeilLayer": "C"}
@@ -53,7 +58,7 @@ def item_id(tile):
 def load_sheets(export):
     """-> versions: {key: dict(name, packages, md5, path)}, by_pkg: {(package, name): key}"""
     files = defaultdict(list)
-    for p in glob.glob(os.path.join(export, "map_*", "Assets", "GameAssets", "Serial", "Res", "Map", "*", "*chip_*.png")):
+    for p in glob.glob(os.path.join(export, "map_*", "Assets", "GameAssets", "Serial", "Res", "Map", "*", "*.png")):
         if Path(p).stem.endswith("_pal_anim"):
             continue   # 128x128 palette-animation lookups listed beside some sheets (package.json), not tile art
         files[Path(p).stem].append(p)
@@ -81,7 +86,7 @@ def walk_layers(layers):
 
 def main(argv):
     export = argv[argv.index("--export") + 1] if "--export" in argv else EXPORT
-    out = Path(argv[argv.index("--out") + 1]) if "--out" in argv else PROJECT / "data" / "map_tiles" / "catalog"
+    out = Path(argv[argv.index("--out") + 1]) if "--out" in argv else P.catalog
     force = "--force" in argv
     if (out / "items.csv").exists() and not force:
         print(f"{out} has a catalogue: use --force to rebuild (labels.csv is never touched)")
@@ -91,8 +96,15 @@ def main(argv):
     # cut every sheet version into items
     sheet_tiles = {}                     # (key, id) -> item
     items = {}                           # item -> tile image
+    rows_of = {}                         # key -> tile rows on the sheet
     for key, v in versions.items():
         im = Image.open(v["path"]).convert("RGBA")
+        if im.size != (COLS * T, COLS * T):
+            # tile numbers assume 32 x 32 tiles (layouts.flip): FF1's Map_10010/30081/30111 (1024x512) and Map_20130
+            # (512x1024) are not supported yet; the 256 px BG_* images and 16 px placeholders are not tile sheets
+            print(f"SKIPPED {key}: {im.size}, only 512x512 sheets are supported")
+            continue
+        rows_of[key] = im.height // T
         if im.size != (COLS * T, COLS * T):
             print(f"WARNING {key}: {im.size}, expected 512x512; cut by 16 px anyway")
         for r in range(im.height // T):
@@ -103,6 +115,12 @@ def main(argv):
                 it = item_id(tile)
                 sheet_tiles[(key, r * COLS + c)] = it
                 items.setdefault(it, tile)
+
+    def top_down(key, t):
+        """Tiled tile number -> catalogue tile id. Tiled counts the sheet's rows from the bottom
+        [verified 2026-11-16, docs/verified_facts.md]; catalogue ids are row-from-top * 32 + column.
+        (Before 2026-11-17 this was read top-down, so usage went to the wrong items.)"""
+        return (rows_of.get(key, COLS) - 1 - t // COLS) * COLS + t % COLS
 
     # usage from every tilemap
     placed, maps, layers, anim, coll = Counter(), defaultdict(set), defaultdict(Counter), set(), defaultdict(Counter)
@@ -117,14 +135,14 @@ def main(argv):
         for ts in sorted(j.get("tilesets", []), key=lambda t: t["firstgid"]):
             name = Path(ts["image"]).stem
             key = by_pkg.get((pkg, name))
-            if key is None and "chip_" not in name:
+            if key is None and name in ("Map_event", "tileset"):
                 placeholders += 1   # event maps: one-tile 'Map_event.png' / 'tileset.png', no tiles placed [verified, Map_40037]
             elif key is None:
                 problems.append(f"{sub}: sheet {name} not in package {pkg}")
             tsets.append((ts["firstgid"], key))
             for e in ts.get("tiles", []):
                 for fr in e.get("animation", []):
-                    it = sheet_tiles.get((key, fr["tileid"]))
+                    it = sheet_tiles.get((key, top_down(key, fr["tileid"])))
                     if it:
                         anim.add(it)
         cgrid = {}
@@ -144,7 +162,7 @@ def main(argv):
                 key = None
                 for first, k in tsets:
                     if g >= first:
-                        key, tid = k, g - first
+                        key, tid = k, top_down(k, g - first)
                 it = sheet_tiles.get((key, tid)) if key else None
                 if it is None:
                     continue

@@ -123,7 +123,7 @@ Shader "SpriteMod/ShadowCast"
                 float id = k + 1;
                 float t = _GsWorld.z;
                 float Wy = _GsWorld.y, Wx = _GsWorld.x;
-                // Same as tools/gpu_shadow/sim/shadow_sim.py fit_robust (approved in the simulator, user 2026-11-14).
+                // Same as tools/gpu_shadow/sim/shadow_sim.py fit_robust (approved in the simulator).
                 float2 px = float2(2.0 / _GsPx.x, 2.0 / _GsPx.y);          // 2 screen px
                 float u0 = max(B.x, 0), u1 = min(B.z, 1), v0 = max(B.y, 0), v1 = min(B.w, 1);
                 // A. the figure's own box (the texture has empty margins), every 4 px
@@ -176,7 +176,7 @@ Shader "SpriteMod/ShadowCast"
                         float sF = acc[0].x / acc[0].z, hF = acc[0].y / acc[0].z, sR = acc[1].x / acc[1].z, hR = acc[1].y / acc[1].z;
                         dy = (s2.y - s1.y) * Wy;
                         float ds = sR - sF;
-                        // E. both soles are on the ground (user, 2026-11-14): D = (dy / t - (hR - hF)) / ds, within 0.1-2 x
+                        // E. both soles are on the ground: D = (dy / t - (hR - hF)) / ds, within 0.1-2 x
                         //    figure width, else depthRange x width; the ground goes through the front sole's slab middle.
                         float Dsol = ds >= 0.03 ? (dy / t - (hR - hF)) / ds : -1;
                         if (Dsol >= 0.1 * Wa * Wx && Dsol <= 2 * Wa * Wx) { D = Dsol; ok = 1; c = s1.y * Wy - (sF * D + hF) * t; }
@@ -184,7 +184,7 @@ Shader "SpriteMod/ShadowCast"
                 }
                 if (s1.w > 0.5)
                 {
-                    // Lifted (flyer, Float; user 2026-11-14, approved in the simulator): the gap is empty space under the
+                    // Lifted (flyer, Float, approved in the simulator): the gap is empty space under the
                     // sprite, so the body is placed with its lowest 3D point exactly the gap above the ground (the shadow
                     // buffer's b = the plugin's effective gap: 2 x the gap to the default shadow's base). No point is lower
                     // than the gap, so no shadow starts closer than gap / tan(elevation). Whole figure, every 4 px.

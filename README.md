@@ -4,6 +4,8 @@ By **Raivshard**.
 
 A BepInEx plugin (`FF5MenuSprites.dll`) and toolkit for HD art and UI mods in **FINAL FANTASY V Pixel Remaster** (Steam, Windows).
 
+**Other Pixel Remaster games:** should run in all PR games. Originally built on FF5 PR, so some bugs may reflect that. Use the game's folder name (`FF1` … `FF6`) in place of `FF5` in the paths below, e.g. `Modules\00-Mods\SpriteMod HD\FF6\`.
+
 It does not contain any art. It is the system that makes HD art look right in the game, plus a live-editable layout file for the menus and the battle screen.
 
 ## What it does
@@ -24,7 +26,8 @@ Everything in `MenuLayout.json` is applied **live**: save the file and the game 
 | Needed | Version tested | Notes |
 |---|---|---|
 | FINAL FANTASY V Pixel Remaster (Steam) | Unity 2019.4.26f1 build | Windows, Direct3D 11 |
-| [BepInEx 6](https://github.com/BepInEx/BepInEx) IL2CPP build | 6.0.0-be.697 | Run the game once after installing it, so BepInEx builds its `interop` folder |
+| [UnityPlayer CRC check Bypass](https://www.nexusmods.com/finalfantasypixelremaster/mods/90) | | Prerequisite for UnityPlayer mods |
+| [BepInEx 6.0.0-pre.2 IL2CPP](https://github.com/BepInEx/BepInEx/releases/download/v6.0.0-pre.2/BepInEx-Unity.IL2CPP-win-x64-6.0.0-pre.2.zip) | 6.0.0-pre.2 (Unity IL2CPP, Windows x64) | Run the game once after installing it, so BepInEx builds its `interop` folder |
 | [KupoUI.PR](https://www.nexusmods.com/finalfantasy5pixelremaster/mods/27) by faospark (Nexus page "Darker UI") | FF5 build | Loads the HD battle, enemy and menu images. Without it the plugin still runs, but that art is not swapped in (HD map tiles and field characters are loaded by the plugin itself) |
 
 Not required, but tested and compatible: Magicite, Memoria.FF5, Syldra, FFPR_Fix.
@@ -37,6 +40,7 @@ Use the ready-made pack zip (Nexus page, or Releases on GitHub). The GitHub sour
 2. Copy everything inside this pack's `install\` folder into the game folder (the folder with `FINAL FANTASY V.exe`). It adds:
    - `BepInEx\plugins\FF5MenuSprites.dll`
    - `Modules\00-Mods\SpriteMod HD\FF5\` (settings file, guides, shader bundle; your art goes here too)
+   - Other PR games: copy only the DLL and make `Modules\00-Mods\SpriteMod HD\FF6\MenuLayout.json` (your game's name in place of `FF6`) containing `{ }`. The pack's `MenuLayout.json` holds FF5 rules.
 3. Start the game. `BepInEx\LogOutput.log` should contain a line with `FF5MenuSprites`.
 
 **Uninstall:** delete `BepInEx\plugins\FF5MenuSprites.dll` and the `Modules\00-Mods\SpriteMod HD` folder.
@@ -49,6 +53,7 @@ Use the ready-made pack zip (Nexus page, or Releases on GitHub). The GitHub sour
 | `install\...\FF5\ART_GUIDE.md` | Making HD art: sizes, file names, folders, depth maps for shadows |
 | `install\...\FF5\FONTS.md` | Using other fonts, and making extra font weights usable |
 | `install\...\FF5\battle_backgrounds\animtex\README.md` | HD frames for animated battle backgrounds |
+| `source\tools\map_tiles\README.md` | Making your own map tiles in Tiled, for any PR game; one command builds and installs them |
 | `examples\author\MenuLayout.json` | The author's full setup: many real rules to copy from. To use it whole, replace the installed `MenuLayout.json` with it; it needs the fonts in `FONTS.md`. The pack's own `MenuLayout.json` is the same setup without fonts and images |
 | `CHANGELOG.md` | What changed in each version |
 | `docs\TECHNICAL_NOTES.md` | How the game works inside, for plugin developers |

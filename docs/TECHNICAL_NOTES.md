@@ -54,7 +54,9 @@ Also: shader pass index = the pass's order in the `.shader` file, not its label.
 - Each map layer is a mesh (`MapLayerMesh`) whose material draws one sheet; UVs come from `MapTileGroupData.TexUVTable`. The same sheet is drawn by `MainViewMapRenderer`, `BirdViewMapRenderer`, `WaterViewMapRenderer` and `MinimapViewMapRenderer` under `RootObject/RootFiled/MapRenderer`. [verified, interop dump + log]
 - A larger sheet loaded by the game (Magicite, or KupoUI by file name) does not display correctly; the plugin lets the game load its own sheet and then sets the material texture, so any size with the same layout works. KupoUI loads any `<sheet>.png` under `Modules\` by name, hence the plugin's `.hd.png` names. [verified]
 - 23 sheet names have different art in different map packages (e.g. `map_chip_063`, 8 versions). The current package is the `Map_NNNNN` child of the `RootObject` that holds `RootFiled/MapRenderer`; `GameObject.Find("RootObject")` can return a different object. [verified]
-- 439 sheet versions hold 31,648 distinct tile images; 12,875 are placed on maps or are animation frames. [verified, counted]
+- 439 sheet versions hold 31,648 distinct tile images; 21,084 are placed on maps or are animation frames. [verified, counted]
+- `tilemap.json` tile numbers count the sheet's rows from the bottom; the catalogue converts them to top-down tile ids (row * 32 + column). [verified]
+- The map sheet PNGs are the texture stored upside down: each tile in them is upside down. Upright art for a single tile must be flipped vertically. [verified in-game]
 
 ## Field characters
 

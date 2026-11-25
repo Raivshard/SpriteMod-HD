@@ -168,7 +168,7 @@ namespace FF5MenuSprites
                 Add(frame, label, ms);
                 if (inTransition) Add(transition, label, ms);
                 if (label == "Map.RequestLoadMap") StartTransition();
-                // who decodes slow PNGs (user 2026-11-16: "significant delay after pressing 'load game'"; profiler: 8-14
+                // who decodes slow PNGs ("significant delay after pressing 'load game'"; profiler: 8-14
                 // decodes of up to 128 ms in that frame, caller unknown). Managed callers only (KupoUI, this plugin); no
                 // managed frame = called from the game's own code.
                 if (label == "Unity.LoadImage(PNG decode)" && ms >= 15.0 && callerLogs < 40)
