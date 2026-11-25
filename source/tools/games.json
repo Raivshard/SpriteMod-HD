@@ -1,4 +1,4 @@
-{ "_about": "Per-game paths for every tool. Edit 'steam' if your games are elsewhere; add a game with its install folder and exe name (without .exe). Tools pick one with --game FF6 (Python) or -Game FF6 (PowerShell); default below.",
+{ "_about": "Per-game paths for every tool. The tools find games in your Steam libraries; if yours are elsewhere, set 'steam' to the folder that holds the game folders (or to the game folder itself); add a game with its install folder and exe name (without .exe). Tools pick one with --game FF6 (Python) or -Game FF6 (PowerShell); default below.",
   "steam": "C:\\Program Files (x86)\\Steam\\steamapps\\common",
   "default": "FF5",
   "games": {

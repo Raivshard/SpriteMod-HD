@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.35.36 (2026-11-25)
+
+### Changed
+
+- **Map tools find your games:** the tools look in every Steam library, so `games.json` usually needs no edit; `steam` may also be the game folder itself, and a path typed with single backslashes works. The export folder follows Magicite's `Export Directory` setting. A missing game or export stops the tools with a message that says what is missing and how to fix it (including how to make the Magicite export, now also in the map guide). `python tools\games.py` prints what was found.
+- **Requirements:** Magicite is listed as required for the map tools (they read its export); it is still not needed to play with the mod.
+
 ## v0.1.35.35 (2026-11-24)
 
 ### New

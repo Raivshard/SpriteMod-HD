@@ -13,10 +13,14 @@ project.json (paths relative to the project folder; all optional except "game"):
   "scale"       HD tile size = 16 x scale px (default 2 = 32 px, the Tiled tile size)
   "mobile"      true = the FF5 mobile-art pipeline (votes, decisions, write_mobile_replacements); Karnak only
   "shadow_maps" maps that get map shadows (mobile pipeline only)
-  "paths"       {"build", "catalog", "choices", "added", "layouts", "objects", "tiled", "installed"}
+  "paths"       {"build", "catalog", "choices", "added", "layouts", "objects", "tiled", "installed",
+                 "mobile_tilesets", "mobile_objects"}
 Defaults (a new project): inside the project folder: choices.csv, "my tiles"\, layouts\, objects\, tiled\,
 installed\, build output = the project folder (overrides\, pack\). The game's tile catalogue is shared:
 data\catalogs\FF5 (FF5), data\catalogs\<game> (other games).
+"mobile_tilesets" / "mobile_objects" (mobile pipeline): the sheets Tiled shows and the build takes its pixels from
+(*.dat.png; Karnak: Working\tilesets\mobile_Tilesets, mobile_Field_Objects, your editable copies). Default: the
+untouched originals in data\sources\FF5 Mobile. The matching tools always read the originals.
 """
 import json, os, sys
 from pathlib import Path
@@ -27,7 +31,8 @@ sys.path.insert(0, str(HERE.parent))
 import paths                                  # project folder layout (tools\paths.py)
 KARNAK = paths.KARNAK
 DEFAULTS = {"build": ".", "catalog": "catalog", "choices": "choices.csv", "added": "my tiles", "layouts": "layouts",
-            "objects": "objects", "tiled": "tiled", "installed": "installed", "shadow_masks": "shadow_masks"}
+            "objects": "objects", "tiled": "tiled", "installed": "installed", "shadow_masks": "shadow_masks",
+            "mobile_tilesets": str(paths.MOBILE_TILESETS), "mobile_objects": str(paths.MOBILE_SRC / "Field Objects")}
 
 
 class Project:

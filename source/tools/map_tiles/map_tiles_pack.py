@@ -184,6 +184,8 @@ def main(argv):
     global EXPORT
     if "--export" in argv:
         EXPORT = Path(argv[argv.index("--export") + 1])
+    else:
+        GAME.require_export()   # stops with what is missing and how to fix it
     skip = {argv[i + 1] for i, a in enumerate(argv) if a in ("--root", "--scale", "--sheets", "--export") and i + 1 < len(argv)}
     args = [a for a in argv if not a.startswith("--") and a not in skip]
     force = "--force" in argv

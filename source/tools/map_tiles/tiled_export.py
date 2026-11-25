@@ -23,7 +23,6 @@ sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parents[1]
 import paths   # project folder layout (tools\paths.py)
 
 PROJECT = Path(__file__).resolve().parents[2]
-MOB = paths.MOBILE_SRC   # mobile tilesets: Karnak (project.json "mobile") only
 LAYERS = ("BottomLayer", "GroundLayer", "UpperLayer", "CeilLayer")
 T = 32
 FLAGS = 0xE0000000
@@ -60,8 +59,9 @@ def rel(p, base):
 
 def mobile_tilesets(out, first):
     sets = []
-    files = ([("slot", p) for p in sorted((MOB / "Tilesets").glob("*.dat.png"))]
-             + [("obj", p) for p in sorted((MOB / "Field Objects").glob("*.dat.png"))]) if P.mobile else []
+    # mobile sheets (project.json "mobile", Karnak only): from the project's paths "mobile_tilesets" / "mobile_objects"
+    files = ([("slot", p) for p in sorted(P.mobile_tilesets.glob("*.dat.png"))]
+             + [("obj", p) for p in sorted(P.mobile_objects.glob("*.dat.png"))]) if P.mobile else []
     files += [("file", p) for p in sorted(P.added.glob("*.png"))]
     for kind, p in files:
         w, h = Image.open(p).size

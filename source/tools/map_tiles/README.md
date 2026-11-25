@@ -18,9 +18,20 @@ Replace or add map tiles in FF1–FF6 Pixel Remaster with your own art: you pain
 |---|---|
 | Tiled 1.10 or newer | mapeditor.org |
 | Python 3 with Pillow | `python -m pip install pillow` |
-| The game with BepInEx, Magicite and this mod's plugin | the mod's install notes |
-| The game's exported map files | Magicite export of the map packages: `MagiciteExport` in the game's `StreamingAssets` |
-| Where your games are | `tools\games.json`, `steam` = the folder that holds the game folders |
+| The game with BepInEx, [Magicite](https://github.com/Silvris/Magicite) and this mod's plugin | the mod's install notes. Magicite is required: the tools read the game's maps from its export |
+| The game's exported files | made once by Magicite, see below |
+| Where your games are | found by the tools in your Steam libraries. Elsewhere: `steam` in `tools\games.json` = the folder that holds the game folders (or the game folder itself) |
+
+**Export the game's files once per game** (the tools read the maps from it):
+
+1. Start the game once with BepInEx and Magicite installed, then close it.
+2. In `<game>\BepInEx\config\silvris.magicite.cfg`, set `Export Enabled = true`.
+3. Start the game and wait until the export is finished. It can take a while; the setting switches itself back to
+   `false`. The files land in `<game>\<exe>_Data\StreamingAssets\MagiciteExport\` (Magicite's `Export Directory`;
+   the tools follow that setting).
+
+Check: `python tools\games.py` prints each game's folder and whether its export is there. If something is missing,
+the tools stop with a message that says what and how to fix it.
 
 Run every command from the folder that holds `tools\` (in the mod's download: `source\`). Inside it, your
 projects go in `Working\tilesets\<name>\`, the game's tile catalogue in `data\catalogs\<game>\`, and the tools' own

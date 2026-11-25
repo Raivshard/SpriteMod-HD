@@ -86,6 +86,8 @@ def walk_layers(layers):
 
 def main(argv):
     export = argv[argv.index("--export") + 1] if "--export" in argv else EXPORT
+    if "--export" not in argv:
+        GAME.require_export()   # stops with what is missing and how to fix it
     out = Path(argv[argv.index("--out") + 1]) if "--out" in argv else P.catalog
     force = "--force" in argv
     if (out / "items.csv").exists() and not force:

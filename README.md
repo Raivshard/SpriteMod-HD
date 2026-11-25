@@ -29,8 +29,9 @@ Everything in `MenuLayout.json` is applied **live**: save the file and the game 
 | [UnityPlayer CRC check Bypass](https://www.nexusmods.com/finalfantasypixelremaster/mods/90) | | Prerequisite for UnityPlayer mods |
 | [BepInEx 6.0.0-pre.2 IL2CPP](https://github.com/BepInEx/BepInEx/releases/download/v6.0.0-pre.2/BepInEx-Unity.IL2CPP-win-x64-6.0.0-pre.2.zip) | 6.0.0-pre.2 (Unity IL2CPP, Windows x64) | Run the game once after installing it, so BepInEx builds its `interop` folder |
 | [KupoUI.PR](https://www.nexusmods.com/finalfantasy5pixelremaster/mods/27) by faospark (Nexus page "Darker UI") | FF5 build | Loads the HD battle, enemy and menu images. Without it the plugin still runs, but that art is not swapped in (HD map tiles and field characters are loaded by the plugin itself) |
+| [Magicite](https://github.com/Silvris/Magicite) by Silvris | | **Required for the map tools** (`source\tools\map_tiles\`): they read the game's maps from Magicite's one-time export (steps in the map guide). Not needed to play with the mod |
 
-Not required, but tested and compatible: Magicite, Memoria.FF5, Syldra, FFPR_Fix.
+Not required, but tested and compatible: Memoria.FF5, Syldra, FFPR_Fix.
 
 ## Install
 

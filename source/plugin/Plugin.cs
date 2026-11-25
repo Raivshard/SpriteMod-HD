@@ -25,7 +25,7 @@ namespace FF5MenuSprites
     {
         /// <summary>Project version v0.M.SS.mm (milestone 0-9; small and minor two digits each), tracked in HANDOFF.md. BepInEx keeps only the first
         /// three parts (BepInPlugin.TryParseLongVersion), so the full string is logged on load.</summary>
-        internal const string Version = "0.1.35.35";
+        internal const string Version = "0.1.35.36";
         internal static ManualLogSource L;
         internal static string ConfigPath;
         static Canvas.WillRenderCanvases afterLayout; // kept referenced so it isn't collected

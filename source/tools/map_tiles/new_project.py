@@ -34,8 +34,7 @@ def main():
     sys.path.insert(0, str(HERE.parent))
     import games
     g = games.Game(game)
-    if not g.export.exists():
-        sys.exit(f"{game}: no MagiciteExport at {g.export} (export the map packages with Magicite first)")
+    g.require_export()   # stops with what is missing (game folder, Magicite, the export) and how to fix it
     from PIL import Image
     for m in maps:
         tm = next(g.export.glob(f"map_*/Assets/GameAssets/Serial/Res/Map/**/{m}/tilemap.json"), None)

@@ -30,7 +30,7 @@ Builds `shaders\out\ff5shadow.bundle` in batch mode (log: `shaders\build_bundle.
 
 ## Tools
 
-Game folders: `tools\games.json` (`steam` = the folder holding the games; one entry per game with its install folder and exe name). Python tools take `--game FF6` (default FF5), PowerShell tools `-Game FF6`. `set FF5_GAME=D:\Games\FINAL FANTASY V PR` still overrides FF5's folder.
+Game folders: `tools\games.json` (one entry per game with its install folder and exe name). The tools find each game in `steam` (the folder holding the games, or the game folder itself), else in every Steam library; the export folder follows Magicite's `Export Directory`. `python tools\games.py` prints what they found. Python tools take `--game FF6` (default FF5), PowerShell tools `-Game FF6`. `set FF5_GAME=D:\Games\FINAL FANTASY V PR` still overrides FF5's folder.
 
 | Tool | Use |
 |---|---|
