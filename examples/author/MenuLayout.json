@@ -81,7 +81,7 @@
   "_                                                   _": "",
   "_        BATTLE SCREEN (cameras, background)        _": "",
   "_____________________________________________________": "",
-  "battle": { "resolutionScale": 0, "fitBackground": true, "spritesDown": 170, "customScale": 1.6, "enemyOnTop": ["MN_FF5_127"], "partyRight": 0, "partyDown": 0, "partySlots": [[-240, 90], [-120, 60], [0, 30], [120, 0]], "backRowShift": 248, "depthScale": 90, "groundShadow": { "on": true, "debug": false, "azimuth": 45, "elevation": 60, "opacity": 0.75, "groundTilt": 0.5, "hideGameShadows": false, "thickness": 0.15, "depthRange": 0.6, "blur": 4, "falloff": 0.75 } },
+  "battle": { "resolutionScale": 0, "fitBackground": true, "spritesDown": 170, "customScale": 1.6, "enemyOnTop": ["MN_FF5_127"], "partyRight": 0, "partyDown": 0, "partySlots": [[-240, 90], [-120, 60], [0, 30], [120, 0]], "backRowShift": 248, "depthScale": 60, "groundShadow": { "on": true, "debug": false, "azimuth": 45, "elevation": 60, "opacity": 0.75, "groundTilt": 0.5, "hideGameShadows": true, "thickness": 0.15, "depthRange": 0.6, "blur": 4, "falloff": 0.75 } },
   "renderHeights": { "CameraBattle": 1440, "CameraBattlebackGround": 1707, "CameraFieldMain": 1440, "CameraTileMap": 1440 },
   "__________________________________________________": "",
   "_                                                _": "",

@@ -72,6 +72,9 @@ namespace FF5MenuSprites
             (typeof(UnityEngine.Object), "Internal_InstantiateSingle", null, "Unity.Instantiate"),
             (typeof(UnityEngine.Object), "Internal_InstantiateSingleWithParent", null, "Unity.Instantiate"),
             (typeof(Shader), "WarmupAllShaders", null, "Unity.WarmupAllShaders"),
+            // FF1 save list: ~950 ms native work after LoadImage in SetScreenShot, no mod hook inside [verified, log
+            // 2026-11-25]; candidate [inferred]: building the sprite (default tight mesh) for the 2560x1440 shot.
+            (typeof(Sprite), "Create", null, "Unity.Sprite.Create"),
         };
 
         internal static void ReadSwitch(string configPath)
@@ -167,7 +170,9 @@ namespace FF5MenuSprites
                 if (!names.TryGetValue(__originalMethod, out var label)) label = __originalMethod.Name;
                 Add(frame, label, ms);
                 if (inTransition) Add(transition, label, ms);
-                if (label == "Map.RequestLoadMap") StartTransition();
+                // Area change starts at the first map-loading call: FF5 RequestLoadMap; FF1 never calls it and goes
+                // straight to SetMapModelData / CreateMapEntity / field entity assets [verified, logs 2026-11-25].
+                if (label.StartsWith("Map.")) StartTransition();
                 // who decodes slow PNGs ("significant delay after pressing 'load game'"; profiler: 8-14
                 // decodes of up to 128 ms in that frame, caller unknown). Managed callers only (KupoUI, this plugin); no
                 // managed frame = called from the game's own code.

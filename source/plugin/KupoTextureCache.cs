@@ -140,7 +140,7 @@ namespace FF5MenuSprites
             float now = Time.realtimeSinceStartup;
             if (now < nextStats) return;
             nextStats = now + 10f;
-            Plugin.L.LogWarning($"[KupoCache] calls {nCalls}: off {nOff}, battle sprites left to KupoUI {nBattleSkip}, already done {nDone}, failed key {nFailedKey}, first time {nNew}, cached copy gone {nDead}, KupoUI did not swap {nNotSwapped}, reused {hits}; kept {stored} (~{bytes / (1024 * 1024)} MB), fell back {fails} | non-readable: seen {nUnreadIn}, KupoUI swapped {nUnreadSwapped}, skipped {nUnreadSkipped} (skip {(SkipUnreadable ? "on" : "off")}), fast path {nFast} (failed {nFastFail}, files in memory {fileBytes.Count}, {fileBytesTotal / (1024 * 1024)} MB, {(FastUnreadable ? "on" : "off")}) (info, not an error)");
+            Plugin.L.LogWarning($"[KupoCache] calls {nCalls}: off {nOff}, battle sprites left to KupoUI {nBattleSkip}, already done {nDone}, failed key {nFailedKey}, first time {nNew}, cached copy gone {nDead}, KupoUI did not swap {nNotSwapped}, reused {hits}; kept {stored} (~{bytes / (1024 * 1024)} MB), fell back {fails} | non-readable: seen {nUnreadIn}, KupoUI swapped {nUnreadSwapped}, skipped {nUnreadSkipped} (skip {(SkipUnreadable ? "on" : "off")}), fast path {nFast} decoded, {nFastHit} GPU-copied, {nFastStored} copies kept, {nFastSize} size differs (failed {nFastFail}, files in memory {fileBytes.Count}, {fileBytesTotal / (1024 * 1024)} MB, {(FastUnreadable ? "on" : "off")}) (info, not an error)");
         }
 
         static bool Prefix(Texture2D __0, string __1, string __2, ref bool __result, out string __state)
@@ -174,13 +174,35 @@ namespace FF5MenuSprites
                     // No cached copy: a non-readable texture is skipped when the switch is on (cached ones are still filled).
                     if (lastUnreadable && SkipUnreadable) { nUnreadSkipped++; __result = false; return false; }
                     // Non-readable: do what KupoUI does, minus the disk read and the Apply that always throws.
-                    if (lastUnreadable && FastUnreadable && TryFast(__0, __1, __2, id)) { __result = false; return false; }
+                    if (lastUnreadable && FastUnreadable && TryFast(__0, __1, __2, id, key)) { __result = false; return false; }
                     __state = key;
                     return true;                                         // KupoUI swaps, Postfix keeps a copy
                 }
+                bool same = __0.width == c.width && __0.height == c.height && __0.format == c.format && __0.mipmapCount == c.mipmapCount;
+                if (lastUnreadable && FastSetup())
+                {
+                    // Non-readable (fast-path copies): GPU copy only when nothing needs resizing (Resize + Apply on a
+                    // non-readable texture is not safe); otherwise decode as before. Same result KupoUI gives: false + skipped.
+                    if (same && !kupoSkipped.Contains(id))
+                    {
+                        try
+                        {
+                            Graphics.CopyTexture(c, __0);
+                            __0.filterMode = c.filterMode; __0.wrapModeU = c.wrapModeU; __0.wrapModeV = c.wrapModeV;
+                            kupoSkipped.Add(id);
+                            nFastHit++; hits++;
+                            __result = false;
+                            return false;
+                        }
+                        catch (Exception e) { if (warned++ < 10) Plugin.L.LogWarning($"[KupoCache] GPU copy of '{key}' failed, decoding instead: {e.Message}"); }
+                    }
+                    else nFastSize++;
+                    if (FastUnreadable && TryFast(__0, __1, __2, id, null)) { __result = false; return false; }
+                    return true;
+                }
                 try
                 {
-                    if (__0.width != c.width || __0.height != c.height || __0.format != c.format || __0.mipmapCount != c.mipmapCount)
+                    if (!same)
                     {
                         if (!__0.Resize(c.width, c.height, c.format, c.mipmapCount > 1)) throw new Exception("Resize returned false");
                         if (__0.mipmapCount != c.mipmapCount) throw new Exception($"mip count {__0.mipmapCount} vs {c.mipmapCount}");
@@ -242,7 +264,7 @@ namespace FF5MenuSprites
         // readable" → caught, id added to SkippedTextureIds, returns false. Here: same lookup and calls through KupoUI's
         // own helpers, file bytes kept in memory, no Apply, same result (false + SkippedTextureIds).
         internal static bool FastUnreadable;
-        static int nFast, nFastFail;
+        static int nFast, nFastFail, nFastHit, nFastSize, nFastStored;
         static bool fastReady, fastBroken;
         static MethodInfo mNormalize, mByAddress, mByName, mMeta, mFilter, mWrap;
         static FieldInfo fInitialized;
@@ -283,7 +305,9 @@ namespace FF5MenuSprites
             catch (Exception e) { fastBroken = true; Plugin.L.LogWarning("[KupoCache] fast path off: " + e.Message); return false; }
         }
 
-        static bool TryFast(Texture2D tex, string name, string address, int id)
+        /// <summary>key != null: after a successful decode, keep a GPU copy for later instances (2026-11-25: the fast path
+        /// decoded every instance again, ~500-1,500 decodes per bestiary opening [verified, profileGame]).</summary>
+        static bool TryFast(Texture2D tex, string name, string address, int id, string key)
         {
             if (!FastSetup()) return false;
             string path = null;
@@ -314,6 +338,7 @@ namespace FF5MenuSprites
                 mWrap.Invoke(null, new object[] { tex, path, meta });
                 kupoSkipped.Add(id);
                 nFast++;
+                if (key != null && !cache.ContainsKey(key)) KeepCopy(tex, key);
                 return true;
             }
             catch (Exception e)
@@ -323,6 +348,25 @@ namespace FF5MenuSprites
                 if (warned++ < 10) Plugin.L.LogWarning($"[KupoCache] fast path failed for '{name}', KupoUI handles it: {(e.InnerException ?? e).Message}");
                 return false;
             }
+        }
+
+        static void KeepCopy(Texture2D src, string key)
+        {
+            try
+            {
+                bool mips = src.mipmapCount > 1;
+                var c = new Texture2D(src.width, src.height, src.format, mips);
+                if (c.mipmapCount != src.mipmapCount) { UnityEngine.Object.Destroy(c); return; }
+                c.Apply(false, true);
+                Graphics.CopyTexture(src, c);
+                c.filterMode = src.filterMode; c.wrapModeU = src.wrapModeU; c.wrapModeV = src.wrapModeV;
+                c.name = src.name;
+                c.hideFlags = HideFlags.DontUnloadUnusedAsset;
+                cache[key] = c;
+                stored++; nFastStored++;
+                bytes += (long)src.width * src.height * 4 * (mips ? 4 : 3) / 3;
+            }
+            catch (Exception e) { if (warned++ < 10) Plugin.L.LogWarning($"[KupoCache] keeping a copy of '{key}' failed (decoded each time instead): {e.Message}"); }
         }
 
         static void Fail(string key, string step, string msg)

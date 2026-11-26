@@ -55,6 +55,7 @@ Use the ready-made pack zip (Nexus page, or Releases on GitHub). The GitHub sour
 | `install\...\FF5\FONTS.md` | Using other fonts, and making extra font weights usable |
 | `install\...\FF5\battle_backgrounds\animtex\README.md` | HD frames for animated battle backgrounds |
 | `source\tools\map_tiles\README.md` | Making your own map tiles in Tiled, for any PR game; one command builds and installs them |
+| `source\tools\ff1psp\README.md` | Extracting reference art from your own copy of FF1 for PSP: textures, maps, sprite frames, animations, text; PSP party battle sprites for FF1 PR |
 | `examples\author\MenuLayout.json` | The author's full setup: many real rules to copy from. To use it whole, replace the installed `MenuLayout.json` with it; it needs the fonts in `FONTS.md`. The pack's own `MenuLayout.json` is the same setup without fonts and images |
 | `CHANGELOG.md` | What changed in each version |
 | `docs\TECHNICAL_NOTES.md` | How the game works inside, for plugin developers |

@@ -25,7 +25,7 @@ namespace FF5MenuSprites
     {
         /// <summary>Project version v0.M.SS.mm (milestone 0-9; small and minor two digits each), tracked in HANDOFF.md. BepInEx keeps only the first
         /// three parts (BepInPlugin.TryParseLongVersion), so the full string is logged on load.</summary>
-        internal const string Version = "0.1.35.36";
+        internal const string Version = "0.1.36.37";
         internal static ManualLogSource L;
         internal static string ConfigPath;
         static Canvas.WillRenderCanvases afterLayout; // kept referenced so it isn't collected
@@ -206,6 +206,7 @@ namespace FF5MenuSprites
     class ElementRule
     {
         public string Name, Path, Sprite, Within; // Within: the object path must also contain this
+        public string PathNC, WithinNC;             // Path / Within without "(Clone)", made once (matching speed, 2026-11-25)
         public bool BattleOnly;
         public float MoveDown, MoveRight, FontSize; // FontSize: 1440p px, 0 = unchanged
         public float FontScale;                     // multiplies the text's own size (turns best fit off); 0 = unchanged
@@ -1394,8 +1395,9 @@ namespace FF5MenuSprites
                     }
                     // The enemy's shadow (ShadowObject/EnemyShadow, MeshRenderer, texture MN_FF5_nnn_Shadow [verified, F8
                     // dump 2026-11-10]) is a separate mesh; HD shadows are sized the same way as the body.
+                    // FF1: BattleEnemy(Clone)/EnemyShadow directly, texture MN_FF1_nnn_Shadow [verified, F8 dump 2026-11-25].
                     var so = en.Find("ShadowObject");
-                    var sh = so != null ? so.Find("EnemyShadow") : null;
+                    var sh = so != null ? so.Find("EnemyShadow") : en.Find("EnemyShadow");
                     if (sh != null && !list.ContainsKey(sh.Pointer))
                     {
                         var sr = sh.GetComponent<MeshRenderer>();
@@ -3615,8 +3617,21 @@ namespace FF5MenuSprites
         internal static string PathOf(Transform t)
         {
             var parts = new List<string>();
-            for (int i = 0; i < 14 && t != null; i++, t = t.parent) parts.Insert(0, t.name);
+            for (int i = 0; i < 14 && t != null; i++, t = t.parent) parts.Insert(0, NameOf(t));
             return string.Join("/", parts);
+        }
+
+        /// <summary>While Consider runs: object names read once per batch (each read crosses into the game; siblings
+        /// share their parent chains). Null outside a batch: names are read fresh. 2026-11-25, FF1 bestiary speed.</summary>
+        static Dictionary<IntPtr, string> batchNames;
+        static readonly Dictionary<IntPtr, string> batchNamesStore = new Dictionary<IntPtr, string>();
+
+        static string NameOf(Transform t)
+        {
+            if (batchNames == null) return t.name;
+            var p = t.Pointer;
+            if (!batchNames.TryGetValue(p, out var n)) batchNames[p] = n = t.name;
+            return n;
         }
 
         /// <summary>The "spacing" rule for a list that is not a Unity layout group (ScrollSpacing).</summary>
@@ -3764,6 +3779,10 @@ namespace FF5MenuSprites
             UpdateTextFlags(rules);
             if (leaves.Count == 0 && !bySprite && !textWithoutPath) return;
             var seenParents = new HashSet<IntPtr>(); // rows share parents: walk each parent chain once per batch
+            batchNamesStore.Clear();
+            batchNames = batchNamesStore;
+            try
+            {
             for (int bi = 0; bi < batch.Count; bi++)
             {
                 var g = batch[bi];
@@ -3789,7 +3808,7 @@ namespace FF5MenuSprites
                     for (int up = 0; up < 16 && a != null; up++, a = a.parent) // 16: the battle menu container is 6+ levels above its graphics [verified, F8 dump 2026-11-07]
                     {
                         if (!seenParents.Add(a.Pointer)) break; // this chain was walked already for a sibling
-                        if (items.ContainsKey(a.Pointer) || !leaves.Contains(NoClone(a.name))) continue;
+                        if (items.ContainsKey(a.Pointer) || !leaves.Contains(NoClone(NameOf(a)))) continue;
                         string path = PathOf(a);
                         var lg = a.GetComponent<HorizontalOrVerticalLayoutGroup>();
                         if (lg != null && !items.ContainsKey(lg.Pointer))
@@ -3806,6 +3825,8 @@ namespace FF5MenuSprites
                 }
                 catch (Exception e) { if (Rules.Log) Plugin.L.LogInfo("[Elements] consider: " + e.Message); }
             }
+            }
+            finally { batchNames = null; batchNamesStore.Clear(); }
         }
 
         /// <summary>1-based position of t among its parent's children that have the same name.</summary>
@@ -3836,11 +3857,12 @@ namespace FF5MenuSprites
         {
             // "text" rules first (they are narrower, and add-on rules come after the main file's): pass 0 = text rules only.
             string shown = null; bool read = false;
+            string pathNC = path != null ? NoClone(path) : null;   // once per object, not once per rule
             for (int pass = anyTextRule ? 0 : 1; pass < 2; pass++)
                 foreach (var r in rules)
                 {
                     if ((r.TextRx != null) != (pass == 0)) continue;
-                    if (!Fits(r, battle, path, spriteName, group, t)) continue;
+                    if (!Fits(r, battle, pathNC, spriteName, group, t)) continue;
                     if (r.TextRx != null)
                     {
                         if (!read) { read = true; shown = t?.GetComponent<Text>()?.text; }
@@ -3851,15 +3873,15 @@ namespace FF5MenuSprites
             return null;
         }
 
-        /// <summary>Every selector except "text".</summary>
-        static bool Fits(ElementRule r, bool battle, string path, string spriteName, bool group, Transform t)
+        /// <summary>Every selector except "text". pathNC = the object path already without "(Clone)" (NoClone).</summary>
+        static bool Fits(ElementRule r, bool battle, string pathNC, string spriteName, bool group, Transform t)
         {
             if (r.BattleOnly && !battle) return false;
-            if (r.Nth > 0 && (t == null || SameNameIndex(t) != r.Nth)) return false;
             if (r.IsGroup != group) return false;
             // "(Clone)" is ignored on both sides: rows the game instantiates get it, prefab children do not.
-            if (r.Within != null && (path == null || !NoClone(path).Contains(NoClone(r.Within)))) return false;
-            if (r.Path != null && (path == null || !NoClone(path).EndsWith(NoClone(r.Path)))) return false;
+            if (r.Within != null && (pathNC == null || !pathNC.Contains(r.WithinNC ??= NoClone(r.Within)))) return false;
+            if (r.Path != null && (pathNC == null || !pathNC.EndsWith(r.PathNC ??= NoClone(r.Path)))) return false;
+            if (r.Nth > 0 && (t == null || SameNameIndex(t) != r.Nth)) return false;   // walks siblings: after the cheap checks
             if (r.Sprite != null && (spriteName == null || !spriteName.StartsWith(r.Sprite))) return false;
             if (r.TextRx != null && (t == null || t.GetComponent<Text>() == null)) return false;
             if (r.FontType != null)
@@ -3889,8 +3911,9 @@ namespace FF5MenuSprites
         {
             if (!anyTextRule || watch.ContainsKey(g.Pointer) || g.TryCast<Text>() == null) return;
             if (path == null) path = PathOf(g.transform);
+            string pathNC = NoClone(path);
             foreach (var r in rules)
-                if (r.TextRx != null && Fits(r, battle, path, null, false, g.transform))
+                if (r.TextRx != null && Fits(r, battle, pathNC, null, false, g.transform))
                 {
                     watch[g.Pointer] = new Watched { G = g, Path = path, Last = g.TryCast<Text>().text };
                     if (Rules.Log) Plugin.L.LogInfo($"[Elements] watching words of '{path}' for '{r.Name}' (now '{watch[g.Pointer].Last}')");
@@ -5705,6 +5728,7 @@ namespace FF5MenuSprites
         readonly Dictionary<IntPtr, Target> targets = new Dictionary<IntPtr, Target>();
         readonly HashSet<string> seenPaths = new HashSet<string>();
         float nextScan, nextBattleCheck, nextFallback, nextWatch;
+        int discoveryLogs;
         bool alive;
 
         static string PathOf(Transform t)
@@ -5739,13 +5763,29 @@ namespace FF5MenuSprites
                 long t0 = Perf.Start();
                 if (Discovery.Pending.Count > 0)
                 {
+                    long d0 = System.Diagnostics.Stopwatch.GetTimestamp();
                     var batch = LoadingIcon.Showing ? Discovery.TakeSome(60) : Discovery.Take();
+                    int nBatch = batch.Count;
+                    long d1 = System.Diagnostics.Stopwatch.GetTimestamp();
                     bool battle = Elements.InBattle();
                     try { Elements.Consider(batch, battle); } catch (Exception e) { Plugin.L.LogWarning("[Elements] consider: " + e.Message); }
+                    long d2 = System.Diagnostics.Stopwatch.GetTimestamp();
                     try { FontTypeStyles.Consider(batch); } catch (Exception e) { Plugin.L.LogWarning("[TextStyles] consider: " + e.Message); }
+                    long d3 = System.Diagnostics.Stopwatch.GetTimestamp();
                     try { TitleHighlight.Consider(batch); } catch (Exception e) { Plugin.L.LogWarning("[Title] consider: " + e.Message); }
+                    long d4 = System.Diagnostics.Stopwatch.GetTimestamp();
                     try { ConsiderSlots(batch); } catch (Exception e) { Plugin.L.LogWarning("[MenuLayout] consider: " + e.Message); }
+                    long d5 = System.Diagnostics.Stopwatch.GetTimestamp();
                     batch.Clear();
+                    // Diagnostic (perf on): big discovery frames, split by step (2026-11-25, FF1 bestiary: up to 86 ms per call).
+                    double dms = (d5 - d0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+                    if (Perf.Enabled && dms > 20 && discoveryLogs < 30)
+                    {
+                        discoveryLogs++;
+                        double f = 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+                        Plugin.L.LogWarning($"[Perf] discovery {dms:0.0} ms for {nBatch} objects{(LoadingIcon.Showing ? " (loading)" : "")}, {Discovery.Pending.Count} left: " +
+                                            $"take+names {(d1 - d0) * f:0.0}, elements {(d2 - d1) * f:0.0}, textStyles {(d3 - d2) * f:0.0}, title {(d4 - d3) * f:0.0}, slots {(d5 - d4) * f:0.0} ms (info, not an error)");
+                    }
                 }
                 Perf.Stop("discovery", t0);
                 if (Time.unscaledTime >= nextWatch)

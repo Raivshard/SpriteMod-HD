@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.1.36.37 (2026-11-25)
+
+### Fixed
+
+- **Save/Load list pictures no longer flicker** (`fastSaveList`): when the list refreshes a slot, a picture shown before is set at once instead of being decoded again. General speedup, and fix for a side-effect of a fix from FF5.
+- **Save/Load list much faster (FF1):** each slot's screenshot took up to 1 s to show because of how the game built the picture. It now shows in about 0.03 s; the list is ready in about 0.2 s. Same code in every PR game.
+- **`hideGameShadows` in FF1:** enemies' round shadows are now hidden too (FF1 keeps them in a different place than FF5).
+- **`profileGame` in FF1:** the per-area-change summary now appears (FF1 loads maps through a different call than FF5).
+
+### Changed
+
+- **Faster menus that open again (`kupoFastUnreadable`):** menu art loaded once is copied straight from the graphics card the next time instead of being loaded again (bestiary, menus).
+- **Faster big screens:** element rules are matched with less work when a screen with many items opens (bestiary). Same result.
+
+### Added
+
+- **FF1 PSP extraction tools** (`source\tools\ff1psp\`, guide in its README): turn your own copy of FINAL FANTASY Anniversary Edition (PSP) into reference art: every texture, the world map and rooms, sprite frames, effect animations and text. One tool builds a KupoUI pack with the PSP party battle sprites for FF1 PR. The tools hold no game data.
+
 ## v0.1.35.36 (2026-11-25)
 
 ### Changed
